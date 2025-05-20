@@ -5,17 +5,17 @@ import umap
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import numpy as np
+import os
 
 from utk_dataset import UTKFaceDataset
 from model import Encoder
 from train_encoder import *
 from utils import *
 
-def load_model(filepath, backbone_name='resnet18', output_dim=128):
-    model = Encoder(backbone_name=backbone_name, output_dim=output_dim)
+def load_model(model, filepath, output_dim=128): 
     checkpoint = torch.load(filepath, map_location='cpu')
     model.load_state_dict(checkpoint['model_state_dict'])
-    print(f"Loaded model from {filepath}, epoch {checkpoint['epoch']}, best loss: {checkpoint['val_mae']:.4f}")
+    print(f"Loaded model from {filepath}, epoch {checkpoint['epoch']}, best loss: {checkpoint['metrics']['train_loss']:.4f}")
     return model
 
 def get_full_loader(data_folder, batch_size=64):
@@ -31,7 +31,7 @@ def extract_embeddings(model, loader, device):
     all_labels = []
 
     with torch.no_grad():
-        with tqdm(loader, unit="batch") as tepoch:
+        with tqdm(loader, unit='batch', ncols=80, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]') as tepoch: 
             for images, labels in tepoch:
                 tepoch.set_description("Extracting Embeddings")
 
@@ -62,11 +62,11 @@ def plot_umap(embeddings, labels, fig_size=8, title="UMAP Projection"):
 def visualize(config):
 
     required_keys = {
-        'device', 'data_folder', 'model_file', 'backbone_model', 'fig_size'
+        'device', 'data_folder', 'best_model_path', 'fig_size', 'model'
     }
     check_config(config, required_keys)
 
-    model = load_model(config['model_file'], backbone_name=config['backbone_model'])
+    model = load_model(config['model'], config['best_model_path'])
     full_loader = get_full_loader(config['data_folder']) 
     
     # Disable the projection layer

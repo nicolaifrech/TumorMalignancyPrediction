@@ -1,4 +1,5 @@
 import torch
+import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import torchvision.transforms as T
 from tqdm import tqdm
@@ -7,6 +8,7 @@ from utk_dataset import UTKFaceDataset
 from model import Encoder
 from loss import RnCLoss  # Your provided loss implementation
 from utils import *
+from analysis import Monitor
 
 # Used in get_data_loaders.
 # Replaces the lambda to allow multiprocessing on macOS and Linux
@@ -60,12 +62,13 @@ def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8):
     train_ds = torch.utils.data.Subset(train_ds, train_indices)
     val_ds = torch.utils.data.Subset(val_ds, val_indices)
 
+    num_workers = 4
     # Train DataLoader
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4,
+        num_workers=num_workers,
         collate_fn=train_collate_fn
     )
 
@@ -74,18 +77,19 @@ def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8):
         val_ds,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=4,
+        num_workers=num_workers,
         collate_fn=val_collate_fn
     )
 
     return train_loader, val_loader
  
-def train_one_epoch(model, loader, criterion, optimizer, device):
+def train_one_epoch(epoch, model, loader, criterion, optimizer, num_epochs, device):
     model.train()
     total_loss = 0
 
-    # Use tqdm to create a progress bar
-    with tqdm(loader, unit="batch") as tepoch:
+    # Use tqdm to create a progress bar   
+    with tqdm(loader, unit='batch', ncols=80, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]') as tepoch:
+        tepoch.set_description(f"Epoch {epoch+1}/{num_epochs}")
         for (images1, images2), ages in tepoch:
             tepoch.set_description("Training")
 
@@ -142,9 +146,10 @@ def save_checkpoint(model, epoch, val_mae, file_name):
 def train_encoder(config):
 
     required_keys = {
-        'device', 'data_folder', 'model_file', 'backbone_model',
-        'batch_size', 'num_epochs', 'learning_rate', 'temperature',
-        'augmentations', 'train_size'
+        'device', 'data_folder', 'batch_size', 'model',
+	    'num_epochs', 'learning_rate', 'temperature', 'augmentations', 'train_size',
+        #'save_analysis', 'output_folder',
+        'monitor_config'
     }
     check_config(config, required_keys)
     
@@ -155,31 +160,46 @@ def train_encoder(config):
     aug = config['augmentations']
     data_folder = config['data_folder']
     train_size = config['train_size']
+    model = config['model']
+    monitor_config = config['monitor_config']
 
     print(f"Training on device: {device}")
 
     train_loader, val_loader = get_data_loaders(data_folder, aug, batch_size=batch_size, train_size=train_size)
-
-    model = Encoder(backbone_name=config['backbone_model']).to(device)   
+ 
     # Initialize Rank-N-Contrast loss
     criterion = RnCLoss(temperature=config['temperature'], label_diff='l1', feature_sim='l2').to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    #best_val_mae = float('inf')
-    best_train_loss = float('inf')
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=3, verbose=False
+    )
+
+    #monitor = Monitor(
+    #    key_metric='train_loss', 
+    #    save_analysis=config['save_analysis'],
+    #    base_dir=config['output_folder'], 
+    #    verbose=True
+    #)
+    monitor = Monitor(monitor_config)
 
     # Training loop
     for epoch in range(num_epochs):
-        train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
-        #val_mae = evaluate(model, val_loader, device)
-        print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}")
-        #print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}, Val MAE = {val_mae:.2f}")
-
-        #if val_mae < best_val_mae:
-        #    best_val_mae = val_mae
-        #    save_checkpoint(model, epoch, best_val_mae, file_name="model_checkpoint.pth")
-        if train_loss < best_train_loss:
-            best_train_loss = train_loss
-            save_checkpoint(model, epoch, best_train_loss, file_name=config['model_file'])
+        train_loss = train_one_epoch(epoch, model, train_loader, criterion, optimizer, num_epochs, device)
+        scheduler.step(train_loss)
+        metrics = {
+            'train_loss': train_loss,
+        }
+        monitor.update(model, metrics, epoch=epoch)
     
+    monitor.close()
     print("Training complete!")
+
+
+
+
+
+
+
+
+

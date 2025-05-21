@@ -36,12 +36,69 @@ def plot_umap(embeddings, labels, fig_size=8, title="UMAP Projection"):
     plt.colorbar(scatter, label="Age")
     plt.show()
 
+def visualize_similarity_matrix(model, dataloader, device, n=2000, title='Feature Similarity Matrix'):
+    """
+    Randomly samples `n` examples from `dataloader`, computes cosine similarity
+    of their embeddings, and plots a similarity matrix sorted by labels.
+
+    Args:
+        model: Trained model.
+        dataloader: A DataLoader yielding (inputs, labels).
+        device: CUDA or CPU device.
+        n: Number of samples to use (default: 2000).
+        title: Title for the plot.
+    """
+    model.eval()
+    embeddings = []
+    labels = []
+
+    # Collect all embeddings and labels
+    with torch.no_grad():
+        for x, y in dataloader:
+            x = x.to(device)
+            y = y.to(device)
+            emb = model(x)
+            embeddings.append(emb.cpu())
+            labels.append(y.cpu())
+
+    embeddings = torch.cat(embeddings, dim=0)
+    labels = torch.cat(labels, dim=0)
+
+    # Sample n examples randomly
+    if len(embeddings) > n:
+        indices = torch.randperm(len(embeddings))[:n]
+        embeddings = embeddings[indices]
+        labels = labels[indices]
+
+    # Sort by label
+    sorted_indices = torch.argsort(labels)
+    sorted_embeddings = embeddings[sorted_indices]
+    sorted_labels = labels[sorted_indices] 
+
+    # Compute cosine similarity matrix
+    sim_matrix = F.cosine_similarity(
+        sorted_embeddings.unsqueeze(1),
+        sorted_embeddings.unsqueeze(0),
+        dim=-1
+    ).numpy()
+
+    # Plot
+    plt.figure(figsize=(5, 5))
+    plt.imshow(sim_matrix, cmap='plasma', interpolation='nearest')
+    plt.title(title)
+    plt.colorbar(label='Cosine similarity')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
 def visualize(config):
 
     required_keys = {
         'device', 'data_folder', 'best_model_path', 'fig_size', 'model'
     }
     check_config(config, required_keys)
+
+    device = config['device']
 
     model = load_model(config['model'], config['best_model_path'])
     full_loader = get_full_loader(config['data_folder']) 
@@ -50,8 +107,10 @@ def visualize(config):
     if hasattr(model, 'projector'):
         model.projector = nn.Identity()
         
-    embeddings, labels = extract_embeddings(model, full_loader, device=config['device'])
+    embeddings, labels = extract_embeddings(model, full_loader, device=device)
     print(f"Shape of embeddings: {embeddings.shape}")
     print(f"Memory usage of embeddings: {embeddings.nbytes / (1024 ** 2):.2f} MB")
     plot_umap(embeddings, labels, fig_size=config['fig_size'])
+
+    visualize_similarity_matrix(model, full_loader, device)
 

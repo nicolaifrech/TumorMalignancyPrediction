@@ -162,18 +162,25 @@ def collect_metrics(model, train_loader, val_loader, criterion, optimizer, devic
     val_embeddings, val_labels = extract_embeddings(model, val_loader, device)
     val_embeddings = torch.tensor(val_embeddings)
     val_labels = torch.tensor(val_labels)
-    #train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
 
     embedding_norm = val_embeddings.norm(dim=1).mean().item()
     embedding_variance = val_embeddings.var(dim=0).mean().item()
 
     val_knn_acc = knn_accuracy(val_embeddings, val_labels)
-    #train_knn_acc = knn_accuracy(train_embeddings, train_labels)
 
-    dists = torch.cdist(val_embeddings, val_embeddings)
-    label_diff = val_labels.unsqueeze(0) - val_labels.unsqueeze(1)
-    spearman = spearmanr(label_diff.flatten().cpu().numpy(), dists.flatten().cpu().numpy()).correlation
-    kendall = kendalltau(label_diff.flatten().cpu().numpy(), dists.flatten().cpu().numpy()).correlation
+    # Feature similarity (cosine similarity)
+    emb_sim = F.cosine_similarity(val_embeddings.unsqueeze(1), val_embeddings.unsqueeze(0), dim=-1)
+
+    # Label similarity (negative absolute difference)
+    label_diff = torch.abs(val_labels.unsqueeze(0) - val_labels.unsqueeze(1))
+    label_sim = -label_diff  # More similar if closer in label value
+
+    # Flatten for rank correlation
+    emb_sim_flat = emb_sim.flatten().cpu().numpy()
+    label_sim_flat = label_sim.flatten().cpu().numpy()
+
+    spearman = spearmanr(label_sim_flat, emb_sim_flat).correlation
+    kendall = kendalltau(label_sim_flat, emb_sim_flat).correlation
 
     lr = optimizer.param_groups[0]['lr']
 
@@ -184,7 +191,7 @@ def collect_metrics(model, train_loader, val_loader, criterion, optimizer, devic
         'embedding_variance': embedding_variance,
         'spearman': spearman,
         'kendall': kendall,
-        'lr': lr, 
+        'lr': lr,
         'val_knn_acc': val_knn_acc
     }
 

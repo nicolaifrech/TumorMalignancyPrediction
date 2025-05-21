@@ -20,7 +20,7 @@ class Monitor:
         self.key_metric = config['key_metric']
         self.save_analysis = config.get('save_analysis', False)
         self.mode = config.get('mode', 'min')
-        self.base_dir = config.get('base_dir', 'outputs')
+        self.base_dir = config.get('base_dir', 'outputs/current')
         self.best_model_file = config.get('best_model_file', os.path.join(self.base_dir, 'best_model.pth'))
         self.analysis_sub_dir = config.get('analysis_dir', 'analysis')
         self.verbose = config.get('verbose', True)

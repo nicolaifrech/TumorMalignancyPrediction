@@ -3,6 +3,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 import torchvision.transforms as T
 from tqdm import tqdm
+from scipy.stats import spearmanr, kendalltau
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+import torch.nn.functional as F
 
 from utk_dataset import UTKFaceDataset
 from model import Encoder
@@ -124,31 +128,71 @@ def train_one_epoch(epoch, model, loader, criterion, optimizer, num_epochs, devi
 
 def evaluate(model, loader, device):
     model.eval()
-    total_loss = 0 
+    total_loss = 0
     with torch.no_grad():
         for images, ages in loader:
             images = images.to(device)
             ages = ages.to(device).float().unsqueeze(1)
             embeddings = model(images)
-            preds = embeddings.mean(dim=1)
-            mae = torch.abs(preds - ages).mean().item()
-            total_loss += mae 
-    return total_loss / len(loader) 
+            preds = embeddings.mean(dim=1)  # Assuming mean pooling for scalar prediction
+            loss = F.l1_loss(preds.view(-1), ages.view(-1)) 
+            total_loss += loss.item()
+    return total_loss / len(loader)
 
-def save_checkpoint(model, epoch, val_mae, file_name):
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'val_mae': val_mae
-    }, file_name)
-    print(f"Model saved at epoch {epoch} with validation MAE: {val_mae:.4f}")
+def knn_accuracy(embeddings, labels, k=5):
+    embeddings_np = embeddings.numpy()
+
+    # Simple train/test split for probing
+    n = len(embeddings_np)
+    split = int(0.8 * n)
+    X_train, X_test = embeddings_np[:split], embeddings_np[split:]
+    y_train, y_test = labels[:split], labels[split:]
+
+    knn = KNeighborsClassifier(n_neighbors=k)
+    knn.fit(X_train, y_train)
+    preds = knn.predict(X_test)
+    acc = accuracy_score(y_test, preds)
+    return acc
+
+def collect_metrics(model, train_loader, val_loader, criterion, optimizer, device):
+    val_loss = evaluate(model, val_loader, device)
+
+    grad_norm = sum(p.grad.norm().item() for p in model.parameters() if p.grad is not None)
+
+    val_embeddings, val_labels = extract_embeddings(model, val_loader, device)
+    val_embeddings = torch.tensor(val_embeddings)
+    val_labels = torch.tensor(val_labels)
+    #train_embeddings, train_labels = extract_embeddings(model, train_loader, device)
+
+    embedding_norm = val_embeddings.norm(dim=1).mean().item()
+    embedding_variance = val_embeddings.var(dim=0).mean().item()
+
+    val_knn_acc = knn_accuracy(val_embeddings, val_labels)
+    #train_knn_acc = knn_accuracy(train_embeddings, train_labels)
+
+    dists = torch.cdist(val_embeddings, val_embeddings)
+    label_diff = val_labels.unsqueeze(0) - val_labels.unsqueeze(1)
+    spearman = spearmanr(label_diff.flatten().cpu().numpy(), dists.flatten().cpu().numpy()).correlation
+    kendall = kendalltau(label_diff.flatten().cpu().numpy(), dists.flatten().cpu().numpy()).correlation
+
+    lr = optimizer.param_groups[0]['lr']
+
+    return {
+        'val_loss': val_loss,
+        'grad_norm': grad_norm,
+        'embedding_norm': embedding_norm,
+        'embedding_variance': embedding_variance,
+        'spearman': spearman,
+        'kendall': kendall,
+        'lr': lr, 
+        'val_knn_acc': val_knn_acc
+    }
 
 def train_encoder(config):
 
     required_keys = {
         'device', 'data_folder', 'batch_size', 'model',
 	    'num_epochs', 'learning_rate', 'temperature', 'augmentations', 'train_size',
-        #'save_analysis', 'output_folder',
         'monitor_config'
     }
     check_config(config, required_keys)
@@ -175,31 +219,19 @@ def train_encoder(config):
         optimizer, mode='min', factor=0.5, patience=3, verbose=False
     )
 
-    #monitor = Monitor(
-    #    key_metric='train_loss', 
-    #    save_analysis=config['save_analysis'],
-    #    base_dir=config['output_folder'], 
-    #    verbose=True
-    #)
     monitor = Monitor(monitor_config)
 
     # Training loop
     for epoch in range(num_epochs):
         train_loss = train_one_epoch(epoch, model, train_loader, criterion, optimizer, num_epochs, device)
         scheduler.step(train_loss)
+
+        other_metrics = collect_metrics(model, train_loader, val_loader, criterion, optimizer, device)
         metrics = {
             'train_loss': train_loss,
+            **other_metrics,
         }
-        monitor.update(model, metrics, epoch=epoch)
+        monitor.update(model, metrics, epoch=epoch) 
     
     monitor.close()
     print("Training complete!")
-
-
-
-
-
-
-
-
-

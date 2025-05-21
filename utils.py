@@ -1,6 +1,8 @@
 from torchvision import transforms
 import math
 import torch
+from tqdm import tqdm
+import numpy as np
 
 def check_config(config, required_keys):
     """
@@ -62,3 +64,26 @@ def get_transforms(split, aug):
         ])
 
     return transform 
+
+def extract_embeddings(model, loader, device):
+    model.to(device)
+    model.eval()
+    all_embeddings = []
+    all_labels = []
+
+    with torch.no_grad():
+        with tqdm(loader, unit='batch', ncols=80, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]') as tepoch: 
+            for images, labels in tepoch:
+                tepoch.set_description("Extracting Embeddings")
+
+                images = images.to(device)
+                embeddings = model(images)
+                all_embeddings.append(embeddings.cpu())
+                all_labels.extend(labels.cpu().numpy())
+
+                # Update progress bar with the number of extracted embeddings
+                tepoch.set_postfix(embeddings=len(all_embeddings))
+
+    all_embeddings = torch.cat(all_embeddings).numpy()
+    all_labels = np.array(all_labels)
+    return all_embeddings, all_labels

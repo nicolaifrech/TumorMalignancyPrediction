@@ -13,7 +13,7 @@ from train_encoder import *
 from utils import *
 
 def load_model(model, filepath, output_dim=128): 
-    checkpoint = torch.load(filepath, map_location='cpu')
+    checkpoint = torch.load(filepath, map_location='cpu', weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     print(f"Loaded model from {filepath}, epoch {checkpoint['epoch']}, best loss: {checkpoint['metrics']['train_loss']:.4f}")
     return model
@@ -23,29 +23,6 @@ def get_full_loader(data_folder, batch_size=64):
     dataset = UTKFaceDataset(data_folder=data_folder, transform=transform)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
     return loader
-
-def extract_embeddings(model, loader, device):
-    model.to(device)
-    model.eval()
-    all_embeddings = []
-    all_labels = []
-
-    with torch.no_grad():
-        with tqdm(loader, unit='batch', ncols=80, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]') as tepoch: 
-            for images, labels in tepoch:
-                tepoch.set_description("Extracting Embeddings")
-
-                images = images.to(device)
-                embeddings = model(images)
-                all_embeddings.append(embeddings.cpu())
-                all_labels.extend(labels.cpu().numpy())
-
-                # Update progress bar with the number of extracted embeddings
-                tepoch.set_postfix(embeddings=len(all_embeddings))
-
-    all_embeddings = torch.cat(all_embeddings).numpy()
-    all_labels = np.array(all_labels)
-    return all_embeddings, all_labels
 
 def plot_umap(embeddings, labels, fig_size=8, title="UMAP Projection"):
     # Create a UMAP reducer

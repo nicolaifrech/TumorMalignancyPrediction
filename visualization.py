@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import umap
 import matplotlib.pyplot as plt
@@ -9,13 +10,15 @@ import os
 
 from utk_dataset import UTKFaceDataset
 from model import Encoder
-from train_encoder import *
-from utils import *
+from utils.config import check_config
+from utils.extraction import extract_embeddings
+from utils.transforms import get_transforms
+from utils.printing import print_verbose
 
-def load_model(model, filepath, output_dim=128): 
+def load_model(model, filepath, output_dim=128, verbose=True): 
     checkpoint = torch.load(filepath, map_location='cpu', weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
-    print(f"Loaded model from {filepath}, epoch {checkpoint['epoch']}, best loss: {checkpoint['metrics']['train_loss']:.4f}")
+    print_verbose(f"Loaded model from {filepath}, epoch {checkpoint['epoch']}, best loss: {checkpoint['metrics']['train_loss']:.4f}", verbose)
     return model
 
 def get_full_loader(data_folder, batch_size=64):
@@ -91,25 +94,32 @@ def visualize_similarity_matrix(model, dataloader, device, n=2000, title='Featur
     plt.tight_layout()
     plt.show()
 
-def visualize(config):
+def visualize(config, verbose=True):
 
+    # Required paramters
     required_keys = {
-        'device', 'data_folder', 'best_model_path', 'fig_size', 'model'
+        'device', 'data_folder', 'best_model_path', 'model'
     }
-    check_config(config, required_keys)
+    check_config(config, required_keys, verbose=verbose)
 
-    device = config['device']
+    device = config['device'] 
+    data_folder = config['data_folder']
+    best_model_path = config['best_model_path'] 
+    model = config['model']
+    
+    # Optional parameters
+    fig_size = config.get('fig_size', 5) 
 
-    model = load_model(config['model'], config['best_model_path'])
-    full_loader = get_full_loader(config['data_folder']) 
+    model = load_model(model, best_model_path, verbose=verbose)
+    full_loader = get_full_loader(data_folder)
     
     # Disable the projection layer
     if hasattr(model, 'projector'):
         model.projector = nn.Identity()
         
-    embeddings, labels = extract_embeddings(model, full_loader, device=device)
-    print(f"Shape of embeddings: {embeddings.shape}")
-    print(f"Memory usage of embeddings: {embeddings.nbytes / (1024 ** 2):.2f} MB")
+    embeddings, labels = extract_embeddings(model, full_loader, device=device, verbose=verbose)
+    print_verbose(f"Shape of embeddings: {embeddings.shape}", verbose)
+    print_verbose(f"Memory usage of embeddings: {embeddings.nbytes / (1024 ** 2):.2f} MB", verbose) 
     plot_umap(embeddings, labels, fig_size=config['fig_size'])
 
     visualize_similarity_matrix(model, full_loader, device)

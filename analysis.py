@@ -2,10 +2,11 @@ import torch
 import os
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import check_config
+from utils.config import check_config
+from utils.printing import print_verbose
 
 class Monitor:
-    def __init__(self, config):
+    def __init__(self, config, verbose=True):
         """
         Args:
             key_metric (str): Name of the metric to monitor.
@@ -15,7 +16,9 @@ class Monitor:
             writer (SummaryWriter): Writer object to access tensor board.
             verbose (bool): Whether to print updates.
         """ 
-        check_config(config, {'key_metric'})
+        self.verbose = verbose
+
+        check_config(config, {'key_metric'}, verbose=False)
         
         self.key_metric = config['key_metric']
         self.save_analysis = config.get('save_analysis', False)
@@ -23,11 +26,15 @@ class Monitor:
         self.base_dir = config.get('base_dir', 'outputs/current')
         self.best_model_file = config.get('best_model_file', os.path.join(self.base_dir, 'best_model.pth'))
         self.analysis_sub_dir = config.get('analysis_dir', 'analysis')
-        self.verbose = config.get('verbose', True)
         self.writer = config.get('writer', SummaryWriter(log_dir=self.base_dir)) 
 
-        #self.save_path = os.path.join(self.base_dir, "best_model.pth")
-        self.analysis_dir = os.path.join(self.base_dir, self.analysis_sub_dir)
+        # Parameters for early stopping
+        self.early_stopping = config.get('early_stopping', False)
+        self.patience = config.get('patience', 10)
+        self.delta = config.get('delta', 0.0)  # Minimum change to qualify as improvement
+        self._epochs_since_improvement = 0 
+ 
+        self.analysis_dir = os.path.join(self.base_dir, self.analysis_sub_dir) 
 
         self.best_value = float('inf') if self.mode == 'min' else -float('inf')
         self.compare = min if self.mode == 'min' else max 
@@ -52,7 +59,7 @@ class Monitor:
         Returns:
             improved (bool): Whether a new best value was found.
         """
-        # Always save analysis data if possible
+        # Save analysis data if wanted
         if self.save_analysis and model is not None and epoch is not None:
             analysis_path = os.path.join(self.analysis_dir, f"epoch_{epoch:03d}.pt")
             self.save(analysis_path, model, epoch, metrics, extra_data)
@@ -66,13 +73,18 @@ class Monitor:
         new_value = metrics[self.key_metric]
         if self.compare(new_value, self.best_value) != self.best_value:
             self.best_value = new_value
+            self._epochs_since_improvement = 0
             if model is not None:
                 self.save(self.best_model_file, model, epoch, metrics, extra_data)
-            if self.verbose:
-                print(f"✅ New best {self.key_metric}: {new_value:.4f} ({self.mode})")
-            return True
-
-        return False
+            print_verbose(f"✅ New best {self.key_metric}: {new_value:.4f} ({self.mode})", self.verbose) 
+            return 'improvement'
+        else:
+            if self.early_stopping:
+                self._epochs_since_improvement += 1
+                if self._epochs_since_improvement >= self.patience: 
+                    print_verbose(f"⏹️_ Early stopping triggered after {self.patience} epochs without improvement.", self.verbose) 
+                    return 'early_stop'
+            return 'no_improvement'
 
     def close(self):
         """
@@ -80,5 +92,4 @@ class Monitor:
         """
         if self.writer is not None:
             self.writer.close()
-            if self.verbose:
-                print("📝 TensorBoard writer closed.")
+            print_verbose("📝 TensorBoard writer closed.", self.verbose)

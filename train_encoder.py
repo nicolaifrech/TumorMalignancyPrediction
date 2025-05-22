@@ -1,18 +1,17 @@
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
-import torchvision.transforms as T
-from tqdm import tqdm
-from scipy.stats import spearmanr, kendalltau
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score
-import torch.nn.functional as F
 
-from utk_dataset import UTKFaceDataset
 from model import Encoder
-from loss import RnCLoss  # Your provided loss implementation
-from utils import *
+from loss import RnCLoss
 from analysis import Monitor
+from metrics import compute_metrics
+from train.train_one_epoch import train_one_epoch
+from utk_dataset import UTKFaceDataset
+
+from utils.config import check_config
+from utils.transforms import get_transforms, TwoCropTransform
+from utils.printing import print_verbose
 
 # Used in get_data_loaders.
 # Replaces the lambda to allow multiprocessing on macOS and Linux
@@ -87,122 +86,15 @@ def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8):
 
     return train_loader, val_loader
  
-def train_one_epoch(epoch, model, loader, criterion, optimizer, num_epochs, device):
-    model.train()
-    total_loss = 0
+def train_encoder(config, verbose=True):
 
-    # Use tqdm to create a progress bar   
-    with tqdm(loader, unit='batch', ncols=80, bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]') as tepoch:
-        tepoch.set_description(f"Epoch {epoch+1}/{num_epochs}")
-        for (images1, images2), ages in tepoch:
-            tepoch.set_description("Training")
-
-            # Move images and labels to the device
-            images1, images2 = images1.to(device), images2.to(device)
-            ages = ages.to(device).float().unsqueeze(1)
-            bsz = ages.size(0)  # Batch size
-
-            optimizer.zero_grad()
-
-            # Efficient forward pass: concatenate the image pairs
-            #images = torch.cat((images1, images2), dim=0)  # Shape: [2*bsz, C, H, W] 
-            images = torch.cat((images1, images2), dim=0)  # Concatenate along batch dimension
-            embeddings = model(images)  # Single forward pass
-            embeddings1, embeddings2 = torch.split(embeddings, [bsz, bsz], dim=0)  # Split back
-            
-            # Stack the embeddings to match the required format [bsz, 2, embedding_dim]
-            features = torch.stack([embeddings1, embeddings2], dim=1)
-
-            # Calculate loss
-            loss = criterion(features, ages)
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-
-            # Update progress bar
-            tepoch.set_postfix(loss=loss.item())
-
-    avg_loss = total_loss / len(loader)
-    return avg_loss
-
-def evaluate(model, loader, device):
-    model.eval()
-    total_loss = 0
-    with torch.no_grad():
-        for images, ages in loader:
-            images = images.to(device)
-            ages = ages.to(device).float().unsqueeze(1)
-            embeddings = model(images)
-            preds = embeddings.mean(dim=1)  # Assuming mean pooling for scalar prediction
-            loss = F.l1_loss(preds.view(-1), ages.view(-1)) 
-            total_loss += loss.item()
-    return total_loss / len(loader)
-
-def knn_accuracy(embeddings, labels, k=5):
-    embeddings_np = embeddings.numpy()
-
-    # Simple train/test split for probing
-    n = len(embeddings_np)
-    split = int(0.8 * n)
-    X_train, X_test = embeddings_np[:split], embeddings_np[split:]
-    y_train, y_test = labels[:split], labels[split:]
-
-    knn = KNeighborsClassifier(n_neighbors=k)
-    knn.fit(X_train, y_train)
-    preds = knn.predict(X_test)
-    acc = accuracy_score(y_test, preds)
-    return acc
-
-def collect_metrics(model, train_loader, val_loader, criterion, optimizer, device):
-    val_loss = evaluate(model, val_loader, device)
-
-    grad_norm = sum(p.grad.norm().item() for p in model.parameters() if p.grad is not None)
-
-    val_embeddings, val_labels = extract_embeddings(model, val_loader, device)
-    val_embeddings = torch.tensor(val_embeddings)
-    val_labels = torch.tensor(val_labels)
-
-    embedding_norm = val_embeddings.norm(dim=1).mean().item()
-    embedding_variance = val_embeddings.var(dim=0).mean().item()
-
-    val_knn_acc = knn_accuracy(val_embeddings, val_labels)
-
-    # Feature similarity (cosine similarity)
-    emb_sim = F.cosine_similarity(val_embeddings.unsqueeze(1), val_embeddings.unsqueeze(0), dim=-1)
-
-    # Label similarity (negative absolute difference)
-    label_diff = torch.abs(val_labels.unsqueeze(0) - val_labels.unsqueeze(1))
-    label_sim = -label_diff  # More similar if closer in label value
-
-    # Flatten for rank correlation
-    emb_sim_flat = emb_sim.flatten().cpu().numpy()
-    label_sim_flat = label_sim.flatten().cpu().numpy()
-
-    spearman = spearmanr(label_sim_flat, emb_sim_flat).correlation
-    kendall = kendalltau(label_sim_flat, emb_sim_flat).correlation
-
-    lr = optimizer.param_groups[0]['lr']
-
-    return {
-        'val_loss': val_loss,
-        'grad_norm': grad_norm,
-        'embedding_norm': embedding_norm,
-        'embedding_variance': embedding_variance,
-        'spearman': spearman,
-        'kendall': kendall,
-        'lr': lr,
-        'val_knn_acc': val_knn_acc
-    }
-
-def train_encoder(config):
-
+    # Required onfig parameters
     required_keys = {
         'device', 'data_folder', 'batch_size', 'model',
 	    'num_epochs', 'learning_rate', 'temperature', 'augmentations', 'train_size',
         'monitor_config'
     }
-    check_config(config, required_keys)
+    check_config(config, required_keys, verbose=verbose)
     
     device = config['device']
     batch_size = config['batch_size']
@@ -214,7 +106,14 @@ def train_encoder(config):
     model = config['model']
     monitor_config = config['monitor_config']
 
-    print(f"Training on device: {device}")
+    # Optional config parameters
+    default_metrics = [
+        "val_loss", "embedding_norm",
+        "embedding_variance", "lr"
+    ]
+    metric_names = config.get('metrics', default_metrics)
+
+    print_verbose(f"Training on device: {device}", verbose) 
 
     train_loader, val_loader = get_data_loaders(data_folder, aug, batch_size=batch_size, train_size=train_size)
  
@@ -226,19 +125,22 @@ def train_encoder(config):
         optimizer, mode='min', factor=0.5, patience=3, verbose=False
     )
 
-    monitor = Monitor(monitor_config)
+    monitor = Monitor(monitor_config, verbose=verbose)
 
     # Training loop
     for epoch in range(num_epochs):
-        train_loss = train_one_epoch(epoch, model, train_loader, criterion, optimizer, num_epochs, device)
+        train_loss = train_one_epoch(epoch, model, train_loader, criterion, optimizer, num_epochs, device, verbose)
         scheduler.step(train_loss)
-
-        other_metrics = collect_metrics(model, train_loader, val_loader, criterion, optimizer, device)
+ 
+        other_metrics = compute_metrics(model, val_loader, device, metric_names, optimizer=optimizer)
         metrics = {
             'train_loss': train_loss,
             **other_metrics,
         }
-        monitor.update(model, metrics, epoch=epoch) 
+        training_status = monitor.update(model, metrics, epoch=epoch) 
+        if training_status == 'early_stop':
+            print_verbose("Stopping early.", verbose)
+            break
     
     monitor.close()
-    print("Training complete!")
+    print_verbose("Training complete!", verbose)  

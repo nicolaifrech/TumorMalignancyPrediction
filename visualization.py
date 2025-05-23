@@ -8,9 +8,9 @@ from tqdm import tqdm
 import numpy as np
 import os
 
-from utk_dataset import UTKFaceDataset
 from model import Encoder
-from utils.config import check_config
+from datasets.utk_dataset import UTKFaceDataset
+from utils.config import extract_config
 from utils.extraction import extract_embeddings
 from utils.transforms import get_transforms
 from utils.printing import print_verbose
@@ -96,31 +96,28 @@ def visualize_similarity_matrix(model, dataloader, device, n=2000, title='Featur
 
 def visualize(config, verbose=True):
 
-    # Required paramters
-    required_keys = {
-        'device', 'data_folder', 'best_model_path', 'model'
-    }
-    check_config(config, required_keys, verbose=verbose)
+    cfg = extract_config(
+        config,
+        required={
+            'device', 'data_folder', 'best_model_path', 'model' 
+        },  
+        optional={
+            'fig_size': 5
+        },  
+        verbose=verbose
+    )   
 
-    device = config['device'] 
-    data_folder = config['data_folder']
-    best_model_path = config['best_model_path'] 
-    model = config['model']
-    
-    # Optional parameters
-    fig_size = config.get('fig_size', 5) 
-
-    model = load_model(model, best_model_path, verbose=verbose)
-    full_loader = get_full_loader(data_folder)
+    model = load_model(cfg.model, cfg.best_model_path, verbose=verbose)
+    full_loader = get_full_loader(cfg.data_folder)
     
     # Disable the projection layer
-    if hasattr(model, 'projector'):
+    if hasattr(cfg.model, 'projector'):
         model.projector = nn.Identity()
         
-    embeddings, labels = extract_embeddings(model, full_loader, device=device, verbose=verbose)
+    embeddings, labels = extract_embeddings(cfg.model, full_loader, device=cfg.device, verbose=verbose)
     print_verbose(f"Shape of embeddings: {embeddings.shape}", verbose)
     print_verbose(f"Memory usage of embeddings: {embeddings.nbytes / (1024 ** 2):.2f} MB", verbose) 
-    plot_umap(embeddings, labels, fig_size=config['fig_size'])
+    plot_umap(embeddings, labels, fig_size=cfg.fig_size)
 
-    visualize_similarity_matrix(model, full_loader, device)
+    visualize_similarity_matrix(cfg.model, full_loader, cfg.device)
 

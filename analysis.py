@@ -28,8 +28,8 @@ class Monitor:
                 'save_analysis': False,
                 'mode': 'min',
                 'base_dir': 'outputs/current',
-                'best_model_file': 'outputs/current/best_model.pth',
-                'analysis_dir': 'outputs/current/analysis',
+                'best_model_file': 'best_model.pth',
+                'analysis_dir': 'analysis',
                 'writer': None,
                 'early_stopping': False,
                 'patience': 10,
@@ -39,13 +39,15 @@ class Monitor:
         )
     
         self.cfg.writer = self.cfg.writer or SummaryWriter(log_dir=self.cfg.base_dir)
+        self.best_model_file = os.path.join(self.cfg.base_dir, self.cfg.best_model_file)
+        self.analysis_dir = os.path.join(self.cfg.base_dir, self.cfg.analysis_dir)
         self._epochs_since_improvement = 0 
 
         self.best_value = float('inf') if self.cfg.mode == 'min' else -float('inf')
         self.compare = min if self.cfg.mode == 'min' else max 
 
-        os.makedirs(self.cfg.analysis_dir, exist_ok=True)
-        os.makedirs(os.path.dirname(self.cfg.best_model_file), exist_ok=True)
+        os.makedirs(self.analysis_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(self.best_model_file), exist_ok=True)
 
     def save(self, path, model, epoch, metrics, extra_data):
         data = {
@@ -66,7 +68,7 @@ class Monitor:
         """
         # Save analysis data if wanted
         if self.cfg.save_analysis and model is not None and epoch is not None:
-            analysis_path = os.path.join(self.cfg.analysis_dir, f"epoch_{epoch:03d}.pt")
+            analysis_path = os.path.join(self.analysis_dir, f"epoch_{epoch:03d}.pt")
             self.save(analysis_path, model, epoch, metrics, extra_data)
 
         if self.cfg.writer and epoch is not None:
@@ -80,7 +82,7 @@ class Monitor:
             self.best_value = new_value
             self._epochs_since_improvement = 0
             if model is not None:
-                self.save(self.cfg.best_model_file, model, epoch, metrics, extra_data)
+                self.save(self.best_model_file, model, epoch, metrics, extra_data)
             print_verbose(f"✅ New best {self.cfg.key_metric}: {new_value:.4f} ({self.cfg.mode})", self.verbose) 
             return 'improvement'
         else:

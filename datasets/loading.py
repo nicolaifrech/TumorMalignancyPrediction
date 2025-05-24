@@ -15,7 +15,7 @@ def val_collate_fn(batch):
     ages = torch.tensor([item[1] for item in batch])
     return images, ages
 
-def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8):
+def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8, num_workers=4):
     train_transform = TwoCropTransform(get_transforms('train', aug))
     val_transform = get_transforms('val', '')
 
@@ -36,12 +36,18 @@ def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8):
 
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=4, collate_fn=train_collate_fn
+        num_workers=num_workers, collate_fn=train_collate_fn
     )
 
     val_loader = DataLoader(
         val_ds, batch_size=batch_size, shuffle=False,
-        num_workers=4, collate_fn=val_collate_fn
+        num_workers=num_workers, collate_fn=val_collate_fn
     )
 
     return train_loader, val_loader
+
+def get_full_loader(data_folder, batch_size=64, num_workers=4):
+    transform = get_transforms('val', '')  # Minimal transform for visualization
+    dataset = UTKFaceDataset(data_folder=data_folder, transform=transform)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
+    return loader

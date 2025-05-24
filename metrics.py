@@ -101,8 +101,6 @@ def compute_metrics(model, val_loader, device, metric_names, optimizer=None, ver
 
     # Extract embeddings and labels
     val_embeddings, val_labels = extract_embeddings(model, val_loader, device, verbose=verbose)
-    val_embeddings = torch.tensor(val_embeddings)
-    val_labels = torch.tensor(val_labels)
 
     # Precompute similarities if needed
     needs_sim = any(name in {'spearman', 'kendall'} for name in metric_names)

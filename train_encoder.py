@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 
 from loss import RnCLoss
-from analysis import Monitor
+from analysis.monitor import Monitor
 from metrics import compute_metrics
 from train.train_one_epoch import train_one_epoch
 
@@ -17,7 +17,7 @@ def train_encoder(config, verbose=True):
         required={
             'device', 'data_folder', 'batch_size', 'model',
             'num_epochs', 'learning_rate', 'temperature', 'augmentations',
-            'train_size', 'monitor_config'
+            'train_size', 'monitor' 
         },
         optional={
             'metrics': ["val_loss", "embedding_norm", "embedding_variance", "lr"] 
@@ -33,9 +33,7 @@ def train_encoder(config, verbose=True):
 
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=3, verbose=verbose
-    )
-
-    monitor = Monitor(cfg.monitor_config, verbose=verbose)
+    ) 
     
     print_verbose(f"Training on device: {cfg.device}", verbose) 
     
@@ -49,10 +47,10 @@ def train_encoder(config, verbose=True):
             'train_loss': train_loss,
             **other_metrics,
         }
-        training_status = monitor.update(cfg.model, metrics, epoch=epoch) 
-        if training_status == 'early_stop':
-            print_verbose("Stopping early.", verbose)
-            break
-    
-    monitor.close()
+        if hasattr(cfg, "monitor") and cfg.monitor:
+            training_status = cfg.monitor.update(cfg.model, metrics, epoch=epoch)
+            if training_status.get("early_stopping") == "early_stop":
+                print_verbose("Stopping early.", verbose)
+                break 
+ 
     print_verbose("Training complete!", verbose)  

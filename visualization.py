@@ -45,7 +45,7 @@ def plot_umap_all_epochs(embeddings_list, labels_list, max_cols=4, figssize=(5, 
         embedding_2d = reducer.fit_transform(embeddings)
 
         if verbose:
-            print_verbose(f"[plot_umap_all_epochs_grid] Epoch {i}: {embeddings.shape}, {labels.shape}", verbose)
+            print_verbose(f"[plot_umap_all_epochs_grid] Epoch {i}: {tuple(embeddings.shape)}, {tuple(labels.shape)}", verbose)
 
         ax = axes[i]
         scatter = ax.scatter(embedding_2d[:, 0], embedding_2d[:, 1], c=labels, cmap='Spectral', alpha=0.7)
@@ -106,13 +106,13 @@ VISUALIZATION_FUNCS = {
         "func": plot_umap,
         "required": {"embeddings", "labels"}
     },
-    "similarity_matrix": {
-        "func": plot_similarity_matrix,
-        "required": {"embeddings", "labels"}
-    },
     "umap_all": {
         "func": plot_umap_all_epochs,
         "required": {"embeddings_list", "labels_list"}
+    },
+    "similarity_matrix": {
+        "func": plot_similarity_matrix,
+        "required": {"embeddings", "labels"}
     }
 }
 

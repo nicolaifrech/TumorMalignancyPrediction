@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader, random_split
-from utils.transforms import get_transforms, TwoCropTransform
 
+from datasets.transforms import get_transforms, TwoCropTransform
 from datasets.utk_dataset import UTKFaceDataset
 
 def train_collate_fn(batch):

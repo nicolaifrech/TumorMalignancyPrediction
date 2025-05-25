@@ -15,7 +15,7 @@ def train(config, verbose=True):
             'criterion', 'optimizer', 'scheduler', 'monitor',
         },
         optional={
-            'metrics': ["val_loss", "embedding_norm", "embedding_variance", "lr"]
+            'metrics': ['val_loss', 'embedding_norm', 'embedding_variance', 'lr']
         },
         verbose=verbose
     ) 
@@ -32,10 +32,10 @@ def train(config, verbose=True):
             'train_loss': train_loss,
             **other_metrics,
         }   
-        if hasattr(cfg, "monitor") and cfg.monitor:
+        if hasattr(cfg, 'monitor') and cfg.monitor:
             training_status = cfg.monitor.update(cfg.model, metrics, epoch=epoch)
-            if training_status.get("early_stopping") == "early_stop":
-                print_verbose("Stopping early.", verbose)
+            if training_status.get('early_stopping') == 'early_stop':
+                print_verbose('Stopping early.', verbose)
                 break 
  
-    print_verbose("Training complete!", verbose)
+    print_verbose('Training complete!', verbose)

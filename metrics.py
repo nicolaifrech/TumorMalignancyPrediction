@@ -4,7 +4,7 @@ from scipy.stats import spearmanr, kendalltau
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score
 
-from utils.extraction import extract_embeddings
+from datasets.extraction import extract_embeddings
 
 def evaluate_scalar_regression(model, loader, device):
     """Evaluates L1 loss for models that output a single scalar."""

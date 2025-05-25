@@ -1,6 +1,7 @@
 import torch
 
-def get_scheduler(scheduler, optimizer, step_size=10, gamma=0.1, epochs=None):
+# TODO: include mode/other schedulers
+def setup_scheduler(scheduler, optimizer, step_size=10, gamma=0.1, epochs=None):
     if scheduler == 'steplr':
         return torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
     elif scheduler == 'cosine':

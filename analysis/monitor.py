@@ -3,6 +3,7 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 from abc import ABC, abstractmethod
 
+from utils.checkpoint import save_checkpoint
 from utils.printing import print_verbose
 
 class Monitor(ABC):
@@ -42,19 +43,20 @@ class OptimumMonitor(Monitor):
         self.verbose = verbose
         self.best_value = float('inf') if mode == 'min' else -float('inf')
 
-    def save(self, path, model, epoch, metrics):
-        data = {
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'metrics': metrics
-        } 
-        torch.save(data, path)
+    #def save(self, path, model, epoch, metrics):
+    #    data = {
+    #        'epoch': epoch,
+    #        'model_state_dict': model.state_dict(),
+    #        'metrics': metrics
+    #    } 
+    #    torch.save(data, path)
 
     def update(self, model, metrics, epoch):
         new_value = metrics[self.key_metric]
         if self._is_improvement(new_value):
             self.best_value = new_value  
-            self.save(self.save_path, model, epoch, metrics)
+            save_checkpoint(model, self.save_path, epoch, metrics)
+            #self.save(self.save_path, model, epoch, metrics)
             print_verbose(f"✅ New best {self.key_metric}: {new_value:.4f} ({self.mode})", self.verbose) 
             result = {
                 'result': 'improvement',
@@ -118,7 +120,8 @@ class SaveModelMonitor(Monitor):
     def update(self, model, metrics, epoch):
         filename = self.filename_template.format(epoch=epoch)
         full_path = os.path.join(self.save_dir, filename)
-        torch.save(model.state_dict(), full_path)
+        #torch.save(model.state_dict(), full_path)
+        save_checkpoint(model, full_path, epoch, metrics)
         return {"model_saved_to": full_path}
 
 class TensorboardMonitor(Monitor):

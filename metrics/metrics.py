@@ -20,19 +20,6 @@ def evaluate_scalar_regression(model, loader, device):
             total_loss += loss.item()
     return total_loss / len(loader)
 
-# Downstream task metric
-def knn_accuracy(embeddings, labels, k=5):
-    embeddings_np = embeddings.numpy()
-    n = len(embeddings_np)
-    split = int(0.8 * n)
-    X_train, X_test = embeddings_np[:split], embeddings_np[split:]
-    y_train, y_test = labels[:split], labels[split:]
-
-    knn = KNeighborsClassifier(n_neighbors=k)
-    knn.fit(X_train, y_train)
-    preds = knn.predict(X_test)
-    return accuracy_score(y_test, preds)
-
 # Embedding quality diagnostics
 def embedding_norm(embeddings, labels=None):
     return embeddings.norm(dim=1).mean().item()
@@ -62,15 +49,7 @@ def kendall_corr(embedding_similarities, label_similarities):
         embedding_similarities.flatten().cpu().numpy()
     ).correlation
 
-METRIC_FUNCS = {
-    'knn_accuracy': knn_accuracy,
-    'embedding_norm': embedding_norm,
-    'embedding_variance': embedding_variance,
-    'spearman': spearman_corr,
-    'kendall': kendall_corr,
-}
-
-def compute_metrics(model, val_loader, device, metric_names, optimizer=None, verbose=True):
+def compute_metrics(model, train_loader, val_loader, optimizer, device, config, verbose=True):
     """
     Computes evaluation metrics on the given model and dataloader.
 
@@ -85,35 +64,26 @@ def compute_metrics(model, val_loader, device, metric_names, optimizer=None, ver
         dict: A dictionary mapping metric names to their computed values.
     """
     metrics = {}
-
-    # Always include validation loss
+    metric_names = config.get('metric_names', [])
+ 
     if 'val_loss' in metric_names:
-        metrics['val_loss'] = evaluate_scalar_regression(model, val_loader, device)
-
-    # Optional: include optimizer metrics
+        metrics['val_loss'] = evaluate_scalar_regression(model, val_loader, device)  
     if 'grad_norm' in metric_names and optimizer is not None:
         metrics['grad_norm'] = sum(
             p.grad.norm().item() for p in model.parameters() if p.grad is not None
         )
-
     if 'lr' in metric_names and optimizer is not None:
         metrics['lr'] = optimizer.param_groups[0]['lr']
-
-    # Extract embeddings and labels
-    val_embeddings, val_labels = extract_embeddings(model, val_loader, device, verbose=verbose)
-
-    # Precompute similarities if needed
-    needs_sim = any(name in {'spearman', 'kendall'} for name in metric_names)
-    if needs_sim:
-        emb_sim = embedding_similarity(val_embeddings)
-        label_sim = label_similarity(val_labels)
-
-    # Compute requested metrics
-    for name in metric_names:
-        if name in METRIC_FUNCS:
-            if name in {'spearman', 'kendall'}:
-                metrics[name] = METRIC_FUNCS[name](emb_sim, label_sim)
-            else:
-                metrics[name] = METRIC_FUNCS[name](val_embeddings, val_labels)
-
+    if 'knn_accuracy' in metric_names and 'knn_analyzer' in config:
+        val_embeddings, val_labels = extract_embeddings(model, val_loader, device, verbose=verbose)
+        metrics['knn_accuracy'] = config['knn_analyzer'].run(
+            model, val_embeddings, val_labels, device=device, verbose=verbose
+        )
+    if any(name in {'spearman', 'kendall'} for name in metric_names):
+        embedding_similarities = embedding_similarity(val_embeddings)
+        label_similarities = label_similarity(val_labels)
+        if 'spearman' in metric_names:
+            metrics['spearman'] = spearman_corr(embedding_similarities, label_similarities)
+        if 'kendall' in metric_names:
+            metrics['kendall'] = kendall_corr(embedding_similarities, label_similarities)   
     return metrics

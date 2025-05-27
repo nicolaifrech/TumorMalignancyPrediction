@@ -43,14 +43,6 @@ class OptimumMonitor(Monitor):
         self.verbose = verbose
         self.best_value = float('inf') if mode == 'min' else -float('inf')
 
-    #def save(self, path, model, epoch, metrics):
-    #    data = {
-    #        'epoch': epoch,
-    #        'model_state_dict': model.state_dict(),
-    #        'metrics': metrics
-    #    } 
-    #    torch.save(data, path)
-
     def update(self, model, metrics, epoch):
         new_value = metrics[self.key_metric]
         if self._is_improvement(new_value):

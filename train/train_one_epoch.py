@@ -9,7 +9,7 @@ def train_one_epoch(epoch, model, loader, criterion, optimizer, num_epochs, devi
     with tqdm(loader, unit='batch', ncols=80, 
         bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]',
         leave=verbose) as tepoch:
-        tepoch.set_description(f"Training Epoch {epoch+1}/{num_epochs}")
+        tepoch.set_description(f"Training Epoch {epoch}/{num_epochs}")
         for (images1, images2), ages in tepoch: 
             # Move images and labels to the device
             images1, images2 = images1.to(device), images2.to(device)

@@ -6,7 +6,7 @@ from datasets.extraction import extract_embeddings
 from model.loading import load_model
 from utils.printing import print_verbose
 
-def extract_best_encoder_embeddings(model, best_model_file, data_path, device, verbose=True):
+def extract_embeddings_from_model(model, best_model_file, data_path, device, verbose=True):
     # Load best model weights
     model = load_model(model, best_model_file, device=device, verbose=verbose)
 
@@ -26,15 +26,12 @@ def extract_best_encoder_embeddings(model, best_model_file, data_path, device, v
 
     return embeddings, labels
 
-def extract_encoder_embeddings_over_epochs(
-    model,
-    checkpoint_dir,
-    data_path,
-    device,
-    verbose=True
+def extract_all_embeddings_from_model(
+    model, checkpoint_dir, data_path,
+    device, file_extension='.pth', verbose=True
 ):
     checkpoint_files = sorted(
-        [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
+        [f for f in os.listdir(checkpoint_dir) if f.endswith(file_extension)]
     )
 
     full_loader = get_full_loader(data_path)

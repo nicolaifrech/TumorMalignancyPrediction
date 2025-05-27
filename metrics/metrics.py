@@ -74,11 +74,12 @@ def compute_metrics(model, train_loader, val_loader, optimizer, device, config, 
         )
     if 'lr' in metric_names and optimizer is not None:
         metrics['lr'] = optimizer.param_groups[0]['lr']
-    if 'knn_accuracy' in metric_names and 'knn_analyzer' in config:
+    if 'knn_accuracy' in metric_names or 'knr_analyzer' in metric_names:
         val_embeddings, val_labels = extract_embeddings(model, val_loader, device, verbose=verbose)
-        metrics['knn_accuracy'] = config['knn_analyzer'].run(
-            model, val_embeddings, val_labels, device=device, verbose=verbose
-        )
+        if 'knn_accuracy' in metric_names and 'knn_analyzer' in config:
+            metrics['knn_accuracy'] = config['knn_analyzer'].run(model, val_embeddings, val_labels, device=device, verbose=verbose)
+        if 'knr_error' in metric_names and 'knr_analyzer' in config:  
+            metrics['knr_error'] = config['knr_analyzer'].run(model, val_embeddings, val_labels, device=device, verbose=verbose)
     if any(name in {'spearman', 'kendall'} for name in metric_names):
         embedding_similarities = embedding_similarity(val_embeddings)
         label_similarities = label_similarity(val_labels)

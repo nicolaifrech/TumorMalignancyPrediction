@@ -23,10 +23,11 @@ def train(config, verbose=True):
     print_verbose(f"Training on device: {cfg.device}", verbose) 
     
     # Training loop
-    for epoch in range(cfg.num_epochs):
+    for epoch in range(1, cfg.num_epochs + 1):
         train_loss = train_one_epoch(epoch, cfg.model, cfg.train_loader, cfg.criterion, cfg.optimizer, cfg.num_epochs, cfg.device, verbose)
         cfg.scheduler.step(train_loss)
-         
+
+        cfg.model.eval()
         other_metrics=compute_metrics(
             model=cfg.model,
             train_loader=cfg.train_loader,

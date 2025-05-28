@@ -2,6 +2,8 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 from device import setup_device
+from metrics.knn_analyzer import KNNAnalyzer
+from metrics.knr_analyzer import KNRAnalyzer
 from setup.optimizer_setup import setup_optimizer
 from setup.scheduler_setup import setup_scheduler
 from setup.monitor_setup import setup_monitor
@@ -10,8 +12,8 @@ from setup.model_setup import setup_encoder
 def setup_training_environment(config):
     device, data_parallel = setup_device(use_gpu_1_only=config['use_gpu_1_only'], verbose=config['verbose'])
     model = setup_encoder(config['backbone_model'], data_parallel, config['pretrained'], device)
-    optimizer = setup_optimizer('adam', model, config['learning_rate'])
-    scheduler = setup_scheduler('steplr', optimizer, step_size=10, gamma=0.1)
+    optimizer = setup_optimizer(config['optimizer'], model, config['learning_rate'], config['momentum'])
+    scheduler = setup_scheduler(config['scheduler'], optimizer, step_size=10, gamma=0.1, epochs=config['num_epochs'])
 
     monitor = setup_monitor({
         'key_metric': config['key_metric'],
@@ -30,7 +32,7 @@ def setup_training_environment(config):
     return device, model, optimizer, scheduler, monitor
 
 def setup_train_config(device, model, optimizer, scheduler, monitor, train_loader, val_loader, train_loader_clean, config):
-    metric_names = config.get("metric_names", [])
+    metric_names = config.get("training_metrics", [])
     nearest_neighbors = config.get("nearest_neighbors", 5)
 
     # Optional metrics

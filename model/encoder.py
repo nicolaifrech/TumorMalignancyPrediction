@@ -12,16 +12,16 @@ class Encoder(nn.Module):
             from torchvision.models import ResNet50_Weights
             weights = ResNet50_Weights.DEFAULT if pretrained else None
         else:
-            raise ValueError(f"Unsupported backbone: {backbone_name}")
+            raise ValueError(f"Unsupported backbone: {backbone_name}") 
 
         backbone = getattr(models, backbone_name)(weights=weights)
  
         self.backbone = backbone
-        self.feature_dim = backbone.fc.in_features
-        backbone.fc = nn.Identity()  # Remove classification layer
+        self.backbone_dim = backbone.fc.in_features 
+        backbone.fc = nn.Identity()
  
         self.projector = nn.Sequential(
-            nn.Linear(self.feature_dim, output_dim),
+            nn.Linear(self.backbone_dim, output_dim),
             nn.ReLU(),
             nn.Linear(output_dim, output_dim)
         )

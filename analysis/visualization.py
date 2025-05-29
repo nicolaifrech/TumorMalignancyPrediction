@@ -93,11 +93,11 @@ def plot_umap_all_epochs(umap_all_data, verbose=True, **kwargs):
         reducer = umap.UMAP(n_neighbors=cfg.num_neighbors, min_dist=cfg.min_dist, metric=cfg.metric, n_jobs=cfg.num_jobs)
         embedding_2d = reducer.fit_transform(embeddings)
 
-        print_verbose(f"[plot_umap_all_epochs_grid] Epoch {i}: {tuple(embeddings.shape)}, {tuple(labels.shape)}", verbose)
+        print_verbose(f"[plot_umap_all_epochs_grid] Epoch {i+1}: {tuple(embeddings.shape)}, {tuple(labels.shape)}", verbose)
 
         ax = axes[i]
         scatter = ax.scatter(embedding_2d[:, 0], embedding_2d[:, 1], c=labels, cmap=cfg.cmap, alpha=cfg.alpha)
-        ax.set_title(f"Epoch {i}")
+        ax.set_title(f"Epoch {i+1}")
         ax.axis('off')
 
     # Hide unused subplots

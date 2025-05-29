@@ -1,7 +1,11 @@
 import torch
 from torch.utils.data import DataLoader, random_split
+import json
+from os.path import join, exists
+
 
 from datasets.transforms import get_transforms, TwoCropTransform
+from datasets.splits import load_or_create_split
 from datasets.utk_dataset import UTKFaceDataset
 
 def train_collate_fn(batch):
@@ -15,77 +19,40 @@ def val_collate_fn(batch):
     ages = torch.tensor([item[1] for item in batch])
     return images, ages
 
-#def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8, num_workers=4):
-#    train_transform = TwoCropTransform(get_transforms('train', aug))
-#    val_transform = get_transforms('val', '')
-#
-#    full_dataset = UTKFaceDataset(data_folder=data_folder)
-#
-#    train_len = int(train_size * len(full_dataset))
-#    val_len = len(full_dataset) - train_len
-#
-#    train_indices, val_indices = random_split(
-#        range(len(full_dataset)), [train_len, val_len]
-#    )
-#
-#    train_ds = UTKFaceDataset(data_folder=data_folder, transform=train_transform)
-#    val_ds = UTKFaceDataset(data_folder=data_folder, transform=val_transform)
-#
-#    train_ds = torch.utils.data.Subset(train_ds, train_indices)
-#    val_ds = torch.utils.data.Subset(val_ds, val_indices)
-#
-#    train_loader = DataLoader(
-#        train_ds, batch_size=batch_size, shuffle=True,
-#        num_workers=num_workers, collate_fn=train_collate_fn
-#    )
-#
-#    val_loader = DataLoader(
-#        val_ds, batch_size=batch_size, shuffle=False,
-#        num_workers=num_workers, collate_fn=val_collate_fn
-#    )
-#
-#    return train_loader, val_loader
+def get_data_loaders(config):
+    data_folder = config['data_folder']
+    split_name = config['split']
+    val_size = config['val_size']
+    test_size = config['test_size']
+    seed = config.get('seed', 0)
+    verbose = config.get('verbose', True)
 
-def get_data_loaders(data_folder, aug, batch_size=64, train_size=0.8, num_workers=4):
-    train_transform = TwoCropTransform(get_transforms('train', aug))
+    # Load or create split
+    split_dict = load_or_create_split(data_folder, split_name, val_size, test_size, seed=seed, verbose=verbose)
+
+    # Transforms
+    train_transform = TwoCropTransform(get_transforms('train', config['augmentations']))
     val_transform = get_transforms('val', '')
 
-    full_dataset = UTKFaceDataset(data_folder=data_folder)
+    # Datasets
+    train_ds = UTKFaceDataset(data_folder, split_files=split_dict, split='train', transform=train_transform)
+    val_ds   = UTKFaceDataset(data_folder, split_files=split_dict, split='val',   transform=val_transform) 
+    test_ds         = UTKFaceDataset(data_folder, split_files=split_dict, split='test', transform=val_transform)
+    train_clean_ds  = UTKFaceDataset(data_folder, split_files=split_dict, split='train', transform=val_transform)
 
-    train_len = int(train_size * len(full_dataset))
-    val_len = len(full_dataset) - train_len
+    # Loader params
+    batch_size = config.get("batch_size", 64)
+    num_workers = config.get("num_workers", 4)
+    train_collate_fn = config.get("train_collate_fn")
+    val_collate_fn = config.get("val_collate_fn")
 
-    train_indices, val_indices = random_split(
-        range(len(full_dataset)), [train_len, val_len]
-    )
+    # DataLoaders
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=train_collate_fn)
+    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
+    test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
+    train_clean_loader = DataLoader(train_clean_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
 
-    # Normal training and validation datasets
-    train_ds = UTKFaceDataset(data_folder=data_folder, transform=train_transform)
-    val_ds = UTKFaceDataset(data_folder=data_folder, transform=val_transform)
-
-    train_ds = torch.utils.data.Subset(train_ds, train_indices)
-    val_ds = torch.utils.data.Subset(val_ds, val_indices)
-
-    train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, collate_fn=train_collate_fn
-    )
-
-    val_loader = DataLoader(
-        val_ds, batch_size=batch_size, shuffle=False,
-        num_workers=num_workers, collate_fn=val_collate_fn
-    )
-
-    # Train dataset with validation-style (non-augmented) transforms for k-NN analysis
-    train_clean_ds = UTKFaceDataset(data_folder=data_folder, transform=val_transform)
-    train_clean_ds = torch.utils.data.Subset(train_clean_ds, train_indices)
-
-    train_clean_loader = DataLoader(
-        train_clean_ds, batch_size=batch_size, shuffle=False,
-        num_workers=num_workers, collate_fn=val_collate_fn
-    )
-
-    return train_loader, val_loader, train_clean_loader
+    return train_loader, val_loader, test_loader, train_clean_loader
 
 def get_full_loader(data_folder, batch_size=64, num_workers=4):
     transform = get_transforms('val', '')  # Minimal transform for visualization

@@ -10,9 +10,10 @@ from setup.monitor_setup import setup_monitor
 from setup.model_setup import setup_encoder
 
 def setup_training_environment(config):
+    momentum = config.get('momentum', 0.9)
     device, data_parallel = setup_device(use_gpu_1_only=config['use_gpu_1_only'], verbose=config['verbose'])
     model = setup_encoder(config['backbone_model'], data_parallel, config['pretrained'], device)
-    optimizer = setup_optimizer(config['optimizer'], model, config['learning_rate'], config['momentum'])
+    optimizer = setup_optimizer(config['optimizer'], model, config['learning_rate'], momentum)
     scheduler = setup_scheduler(config['scheduler'], optimizer, step_size=10, gamma=0.1, epochs=config['num_epochs'])
 
     monitor = setup_monitor({
@@ -23,8 +24,8 @@ def setup_training_environment(config):
         'save_intermediate_models': config['save_intermediate_models'],
         'analysis_dir': os.path.join(config['test_dir'], 'analysis'),
         'use_early_stopping': config['use_early_stopping'],
-        'patience': config['patience'],
-        'delta': config['delta'],
+        'patience': config.get('patience', 10),
+        'delta': config.get('delta', 1e-4),
         'write_to_tensorboard': config['write_to_tensorboard'],
         'writer': SummaryWriter(log_dir=config['test_dir'])
     }, verbose=config['verbose'])

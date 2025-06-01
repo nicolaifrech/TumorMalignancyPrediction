@@ -23,8 +23,8 @@ def get_data_loaders(config):
     data_folder = config['data_folder']
     split_name = config['split']
     val_size = config['val_size']
-    test_size = config['test_size']
-    seed = config.get('seed', 0)
+    test_size = config['test_size'] 
+    seed = config.get('seed', 0) 
     verbose = config.get('verbose', True)
 
     # Load or create split
@@ -47,10 +47,10 @@ def get_data_loaders(config):
     val_collate_fn = config.get("val_collate_fn")
 
     # DataLoaders
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=train_collate_fn)
-    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
-    test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
-    train_clean_loader = DataLoader(train_clean_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True, collate_fn=train_collate_fn)
+    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    train_clean_loader = DataLoader(train_clean_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     return train_loader, val_loader, test_loader, train_clean_loader
 

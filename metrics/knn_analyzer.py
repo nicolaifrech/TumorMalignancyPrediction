@@ -33,7 +33,7 @@ class KNNAnalyzer:
 
         # Extract training embeddings from clean data
         train_embeddings, train_labels = extract_embeddings(
-            model, self.data_loader, device=device, verbose=verbose
+            model, self.data_loader, device=device, verbose=False
         )
 
         # Fit and evaluate k-NN

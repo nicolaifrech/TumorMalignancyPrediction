@@ -62,6 +62,13 @@ def create_train_val_test_split(
 
     return split
 
+def print_split_stats(split: dict, verbose: bool = True):
+    total = sum(len(v) for v in split.values())
+    for key in ['train', 'val', 'test']:
+        n = len(split.get(key, []))
+        percent = 100 * n / total if total > 0 else 0
+        print_verbose(f"{key.upper():>5}: {n} samples ({percent:.1f}%)", verbose)
+
 def load_or_create_split(
     data_folder: str,
     split_name: str,
@@ -89,10 +96,12 @@ def load_or_create_split(
     if os.path.exists(split_file): 
         print_verbose(f"✅ Loaded existing split: {split_file}", verbose)
         with open(split_file, 'r') as f:
-            return json.load(f)
+            split = json.load(f)
+        print_split_stats(split, verbose)
+        return split
     else: 
         print_verbose(f"🆕 Split not found — creating: {split_file}", verbose)
-        return create_train_val_test_split(
+        split = create_train_val_test_split(
             all_files=[f for f in os.listdir(data_folder) if f.endswith('.jpg')],
             test_size=test_size,
             val_size=val_size,
@@ -101,3 +110,5 @@ def load_or_create_split(
             output_dir=splits_dir,
             verbose=verbose
         )
+        print_split_stats(split, verbose)
+        return split

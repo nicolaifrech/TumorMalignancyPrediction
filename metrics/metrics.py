@@ -75,7 +75,7 @@ def compute_metrics(model, train_loader, val_loader, optimizer, device, config, 
     if 'lr' in metric_names and optimizer is not None:
         metrics['lr'] = optimizer.param_groups[0]['lr']
     if 'knn_accuracy' in metric_names or 'knr_analyzer' in metric_names:
-        val_embeddings, val_labels = extract_embeddings(model, val_loader, device, verbose=verbose)
+        val_embeddings, val_labels = extract_embeddings(model, val_loader, device, verbose=False)
         if 'knn_accuracy' in metric_names and 'knn_analyzer' in config:
             metrics['knn_accuracy'] = config['knn_analyzer'].run(model, val_embeddings, val_labels, device=device, verbose=verbose)
         if 'knr_error' in metric_names and 'knr_analyzer' in config:  

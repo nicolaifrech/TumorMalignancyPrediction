@@ -11,7 +11,7 @@ def extract_embeddings(model, loader, device, verbose=True):
     with torch.no_grad():
         with tqdm(loader, unit='batch', ncols=80,
                   bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]',
-                  leave=verbose) as tepoch:
+                  leave=False) as tepoch:
             for images, labels in tepoch:
                 tepoch.set_description("Extracting Embeddings")
 

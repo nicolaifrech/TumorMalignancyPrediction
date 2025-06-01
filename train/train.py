@@ -12,7 +12,7 @@ def train_one_epoch(epoch, model, loader, criterion, optimizer, num_epochs,
 
     with tqdm(loader, unit='batch', ncols=80,
               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]',
-              leave=verbose) as tepoch:
+              leave=False) as tepoch:
         tepoch.set_description(f"Training Epoch {epoch}/{num_epochs}")
         for batch in tepoch:
             # step_fn handles batch unpacking, forward, loss, and backward

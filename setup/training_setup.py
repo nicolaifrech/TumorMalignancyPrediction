@@ -12,7 +12,8 @@ from setup.model_setup import setup_encoder
 def setup_training_environment(config):
     momentum = config.get('momentum', 0.9)
     device, data_parallel = setup_device(use_gpu_1_only=config['use_gpu_1_only'], verbose=config['verbose'])
-    model = setup_encoder(config['backbone_model'], data_parallel, config['pretrained'], device)
+    #model = setup_encoder(config['backbone_model'], data_parallel, config['encoder_output_dim'], config['pretrained'], device)
+    model = config['model_builder'](config)
     optimizer = setup_optimizer(config['optimizer'], model, config['learning_rate'], momentum)
     scheduler = setup_scheduler(config['scheduler'], optimizer, step_size=10, gamma=0.1, epochs=config['num_epochs'])
 

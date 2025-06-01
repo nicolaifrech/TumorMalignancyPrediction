@@ -1,33 +1,23 @@
 import torch
 
-from loss import RnCLoss
 from utils.config import extract_config
 from train.train import train
-from train.step import supervised_two_view_step_fn
+from train.step import supervised_step_fn
 
-def train_encoder(config, verbose=True):
+def train_predictor(config, verbose=True):
     cfg = extract_config(
         config,
         required={
-            'device', 'temperature',
+            'device',
             'train_loader', 'val_loader',
             'optimizer', 'scheduler',
-            'train_config'   
+            'train_config', 'criterion'
         },
         optional={
-            'label_difference': 'l1',
-            'feature_similarity': 'l2',
-            'step_fn': supervised_two_view_step_fn
+            'step_fn': supervised_step_fn
         },
         verbose=verbose
     )
-
-    # Build loss specific to encoder training
-    criterion = RnCLoss(
-        temperature=cfg.temperature,
-        label_diff=cfg.label_difference,
-        feature_sim=cfg.feature_similarity
-    ).to(cfg.device)
 
     # Compose config to pass to train()
     train_config = {
@@ -35,7 +25,7 @@ def train_encoder(config, verbose=True):
         'device': cfg.device,
         'train_loader': cfg.train_loader,
         'val_loader': cfg.val_loader,
-        'criterion': criterion,
+        'criterion': cfg.criterion,
         'optimizer': cfg.optimizer,
         'scheduler': cfg.scheduler,
         'step_fn': cfg.step_fn

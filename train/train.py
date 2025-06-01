@@ -1,9 +1,27 @@
 import torch
+from tqdm import tqdm
 
-from train.train_one_epoch import train_one_epoch
 from metrics.metrics import compute_metrics
 from utils.config import extract_config
 from utils.printing import print_verbose
+
+def train_one_epoch(epoch, model, loader, criterion, optimizer, num_epochs,
+        step_fn, device, verbose=True):
+    model.train()
+    total_loss = 0
+
+    with tqdm(loader, unit='batch', ncols=80,
+              bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{rate_fmt}]',
+              leave=verbose) as tepoch:
+        tepoch.set_description(f"Training Epoch {epoch}/{num_epochs}")
+        for batch in tepoch:
+            # step_fn handles batch unpacking, forward, loss, and backward
+            loss = step_fn(model, batch, criterion, optimizer, device)
+            total_loss += loss
+            tepoch.set_postfix(loss=loss)
+
+    avg_loss = total_loss / len(loader)
+    return avg_loss
 
 def train(config, verbose=True):
   
@@ -13,6 +31,7 @@ def train(config, verbose=True):
             'device', 'model',
             'num_epochs', 'train_loader', 'val_loader',
             'criterion', 'optimizer', 'scheduler', 'monitor',
+            'step_fn'
         },
         optional={
             'metrics': {'metric_names': ['val_loss', 'embedding_norm', 'embedding_variance', 'lr']}
@@ -24,7 +43,9 @@ def train(config, verbose=True):
     
     # Training loop
     for epoch in range(1, cfg.num_epochs + 1):
-        train_loss = train_one_epoch(epoch, cfg.model, cfg.train_loader, cfg.criterion, cfg.optimizer, cfg.num_epochs, cfg.device, verbose)
+        train_loss = train_one_epoch(epoch, cfg.model, cfg.train_loader, cfg.criterion, 
+            cfg.optimizer, cfg.num_epochs, cfg.step_fn, cfg.device, verbose
+        )
         cfg.scheduler.step(train_loss)
 
         cfg.model.eval()

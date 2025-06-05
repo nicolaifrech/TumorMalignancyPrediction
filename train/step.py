@@ -16,6 +16,18 @@ def supervised_step_fn(model, batch, criterion, optimizer, device):
 
     return loss.item()
 
+def regression_predictor_step_fn(model, batch, criterion, optimizer, device):
+    inputs, targets = batch
+    inputs, targets = inputs.to(device), targets.to(device)
+
+    optimizer.zero_grad()
+    outputs = model(inputs)
+    loss = criterion(outputs, targets)
+    loss.backward()
+    optimizer.step()
+
+    return loss.item()
+
 def unsupervised_step_fn(model, batch, criterion, optimizer, device):
     """
     Unsupervised single-input training step.
@@ -39,18 +51,18 @@ def supervised_two_view_step_fn(model, batch, criterion, optimizer, device):
     Supervised training step for two-view inputs, such as contrastive learning with labels (e.g., SupCon or Rank-N-Contrast).
     Assumes: ((view1, view2), targets) format and model.criterion is defined.
     """
+    
     (view1, view2), targets = batch
     view1, view2 = view1.to(device), view2.to(device)
-    targets = targets.to(device)
-
-    batch_size = view1.size(0)
+    targets = targets.to(device).float().unsqueeze(1)
+    bsz = targets.size(0)
 
     optimizer.zero_grad()
-    inputs = torch.cat((view1, view2), dim=0)  # [2 * B, ...]
-    embeddings = model(inputs)
-    emb1, emb2 = torch.split(embeddings, [batch_size, batch_size], dim=0)
-    features = torch.stack([emb1, emb2], dim=1)  # [B, 2, D]
+    inputs = torch.cat((view1, view2), dim=0)       # [2B, C, H, W]
+    embeddings = model(inputs)                      # [2B, D]
 
+    embeddings1, embeddings2 = torch.split(embeddings, [bsz, bsz], dim=0)
+    features = torch.stack([embeddings1, embeddings2], dim=1) 
     loss = criterion(features, targets)
     loss.backward()
     optimizer.step()

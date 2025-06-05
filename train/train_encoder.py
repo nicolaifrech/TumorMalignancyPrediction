@@ -1,6 +1,6 @@
 import torch
 
-from loss import RnCLoss
+from loss.rnc_loss import RnCLoss
 from utils.config import extract_config
 from train.train import train
 from train.step import supervised_two_view_step_fn

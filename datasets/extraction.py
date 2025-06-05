@@ -17,6 +17,7 @@ def extract_embeddings(model, loader, device, verbose=True):
 
                 images = images.to(device)
                 embeddings = model(images)
+ 
                 all_embeddings.append(embeddings.cpu())
                 all_labels.append(labels.cpu())
 

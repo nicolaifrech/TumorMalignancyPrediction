@@ -1,0 +1,48 @@
+verbose: true
+seed: 0
+use_gpu_1_only: false
+
+backbone_model: resnet18
+output_dim: 128
+pretrained: true
+
+base_dir: ../../outputs/current
+test_name: resnet_18_200_epoch_run_pretrained
+initial_model_file_name: initial_model.pth
+best_model_file_name: best_model.pth
+
+data_folder: ../../data/utkface/UTKFace
+augmentations: crop,flip,color,grayscale
+split: default
+val_size: 0.15
+test_size: 0.15
+train_size: 0.7
+
+batch_size: 512
+num_epochs: 200
+learning_rate: 0.5
+optimizer: sgd
+weight_decay: 1e-6
+momentum: 0.9
+scheduler: cosine
+
+temperature: 2.0
+
+key_metric: train_loss
+mode: min
+save_best_model: true
+use_early_stopping: false
+save_intermediate_models: true
+write_to_tensorboard: true
+
+training_metrics:
+  - embedding_norm
+  - embedding_variance
+  - knn_accuracy
+  - knr_error
+  - spearman
+  - kendall
+  - grad_norm
+  - lr
+
+nearest_neighbors: 5

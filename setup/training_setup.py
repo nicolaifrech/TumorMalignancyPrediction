@@ -12,8 +12,8 @@ from setup.model_setup import setup_encoder
 def setup_training_environment(config):
     momentum = config.get('momentum', 0.9)
     device, data_parallel = setup_device(use_gpu_1_only=config['use_gpu_1_only'], verbose=config['verbose'])
-    #model = setup_encoder(config['backbone_model'], data_parallel, config['encoder_output_dim'], config['pretrained'], device)
-    model = config['model_builder'](config)
+    model = setup_encoder(config['backbone_model'], data_parallel, config['output_dim'], config['pretrained'], device)
+    #model = config['model_builder']({**config, 'device': device, 'data_parallel': data_parallel})
     optimizer = setup_optimizer(config['optimizer'], model, config['learning_rate'], momentum)
     scheduler = setup_scheduler(config['scheduler'], optimizer, step_size=10, gamma=0.1, epochs=config['num_epochs'])
 
@@ -33,7 +33,7 @@ def setup_training_environment(config):
 
     return device, model, optimizer, scheduler, monitor
 
-def setup_train_config(device, model, optimizer, scheduler, monitor, train_loader, val_loader, train_loader_clean, config):
+def setup_train_config(device, model, optimizer, scheduler, monitor, train_loader, val_loader, train_loader_clean, ordinal_map, config):
     metric_names = config.get("training_metrics", [])
     nearest_neighbors = config.get("nearest_neighbors", 5)
 
@@ -58,6 +58,7 @@ def setup_train_config(device, model, optimizer, scheduler, monitor, train_loade
         "optimizer": optimizer,
         "scheduler": scheduler,
         "temperature": config['temperature'],
+        "ordinal_map": ordinal_map,
         "train_config": {
             "model": model,
             "num_epochs": config["num_epochs"],

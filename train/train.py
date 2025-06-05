@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from metrics.metrics import compute_metrics
@@ -45,7 +46,8 @@ def train(config, verbose=True):
     for epoch in range(1, cfg.num_epochs + 1):
         train_loss = train_one_epoch(epoch, cfg.model, cfg.train_loader, cfg.criterion, 
             cfg.optimizer, cfg.num_epochs, cfg.step_fn, cfg.device, verbose
-        )
+        )    
+
         cfg.scheduler.step(train_loss)
 
         cfg.model.eval()

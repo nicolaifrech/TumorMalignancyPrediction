@@ -2,11 +2,13 @@ import torch
 from torch.utils.data import DataLoader, random_split
 import json
 from os.path import join, exists
-
+import io
 
 from datasets.transforms import get_transforms, TwoCropTransform
 from datasets.splits import load_or_create_split
 from datasets.utk_dataset import UTKFaceDataset
+from mappings.ordinal_map import OrdinalMap
+from datasets.discretized_dataset import DiscretizedDataset
 
 def train_collate_fn(batch):
     images1 = torch.stack([item[0][0] for item in batch], dim=0)
@@ -19,11 +21,22 @@ def val_collate_fn(batch):
     ages = torch.tensor([item[1] for item in batch])
     return images, ages
 
+def describe_and_save_ordinal_map(ordinal_map, loader, output_path, verbose):
+    values = []
+    for _, targets in loader:
+        if isinstance(targets, (tuple, list)):
+            targets = targets[0]
+        values.append(targets)
+    scalar_values = torch.cat(values, dim=0)
+    ordinal_map.describe(scalar_values, file=output_path, verbose=verbose)
+
 def get_data_loaders(config):
     data_folder = config['data_folder']
     split_name = config['split']
     val_size = config['val_size']
     test_size = config['test_size'] 
+    discretize_labels = config.get('discretize_labels', False)
+    num_classes = config.get('num_classes', 10)
     seed = config.get('seed', 0) 
     verbose = config.get('verbose', True)
 
@@ -40,6 +53,16 @@ def get_data_loaders(config):
     test_ds         = UTKFaceDataset(data_folder, split_files=split_dict, split='test', transform=val_transform)
     train_clean_ds  = UTKFaceDataset(data_folder, split_files=split_dict, split='train', transform=val_transform)
 
+    # Optional Discretization
+    if discretize_labels:
+        ordinal_map = OrdinalMap(domain=(0, 116), num_classes=num_classes)
+        train_ds = DiscretizedDataset(train_ds, ordinal_map)
+        val_ds = DiscretizedDataset(val_ds, ordinal_map)
+        test_ds = DiscretizedDataset(test_ds, ordinal_map)
+        train_clean_ds = DiscretizedDataset(train_clean_ds, ordinal_map) 
+    else:
+        ordinal_map = None
+
     # Loader params
     batch_size = config.get("batch_size", 64)
     num_workers = config.get("num_workers", 4)
@@ -52,10 +75,16 @@ def get_data_loaders(config):
     test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
     train_clean_loader = DataLoader(train_clean_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
-    return train_loader, val_loader, test_loader, train_clean_loader
+    if ordinal_map is not None:
+        describe_and_save_ordinal_map(ordinal_map, train_clean_loader, 
+            os.path.join(config['base_dir'], config['dataset_description_file_name']),
+            verbose=verbose
+        )
 
-def get_full_loader(data_folder, batch_size=64, num_workers=4):
-    transform = get_transforms('val', '')  # Minimal transform for visualization
-    dataset = UTKFaceDataset(data_folder=data_folder, transform=transform)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
-    return loader
+    return train_loader, val_loader, test_loader, train_clean_loader, ordinal_map
+
+#def get_full_loader(data_folder, batch_size=64, num_workers=4):
+#    transform = get_transforms('val', '')  # Minimal transform for visualization
+#    dataset = UTKFaceDataset(data_folder=data_folder, transform=transform)
+#    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, collate_fn=val_collate_fn)
+#    return loader

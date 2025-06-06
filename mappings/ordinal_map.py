@@ -4,24 +4,26 @@ import io
 
 from utils.printing import print_verbose
 
-class OrdinalMap:
-    def __init__(self, domain: Tuple[float, float], num_classes: int):
+class OrdinalMap():
+    def __init__(self, domain: Tuple[float, float], num_classes: int): 
         self.domain = domain
         self.num_classes = num_classes  
         
-        self.class_centers = self.compute_class_centers()  
-        self.bin_edges = self.compute_bin_edges() 
+        self.bin_edges = self.compute_bin_edges()
+        self.class_centers = self.compute_class_centers() 
 
-    def map_to_index(self, value: torch.Tensor) -> torch.Tensor:
-        value_clipped = torch.clamp(value, min=self.bin_edges[0], max=self.bin_edges[-1])
-        index = torch.bucketize(value_clipped, self.bin_edges, right=False) - 1
+    def map_to_index(self, values: torch.Tensor) -> torch.Tensor: 
+        values = values.cpu()
+        values_clipped = torch.clamp(values, min=self.bin_edges[0], max=self.bin_edges[-1])
+        index = torch.bucketize(values_clipped, self.bin_edges, right=False) - 1
         return torch.clamp(index, 0, self.num_classes - 1)
 
-    def map_to_center(self, value: torch.Tensor) -> torch.Tensor:
-        return self.class_centers[self.map_to_index(value)]
+    def map_to_center(self, values: torch.Tensor) -> torch.Tensor:
+        values = values.cpu()
+        return self.class_centers[self.map_to_index(values)]
    
-    def __call__(self, value: torch.Tensor) -> torch.Tensor:
-        return self.map_to_center(value)
+    def __call__(self, values: torch.Tensor) -> torch.Tensor: 
+        return self.map_to_center(values)
 
     def class_distribution(self, values: torch.Tensor, normalize: bool = True) -> torch.Tensor:
         """
@@ -34,7 +36,8 @@ class OrdinalMap:
 
         Returns:
             torch.Tensor: A 1D tensor of shape (num_classes,)
-        """
+        """ 
+        values = values.cpu()
         indices = self.map_to_index(values)
         counts = torch.bincount(indices, minlength=self.num_classes)
         if normalize:
@@ -49,6 +52,8 @@ class OrdinalMap:
             values (torch.Tensor): scalar labels from the dataset
             file (str or None): optional path to save the output
         """ 
+        values = values.cpu()
+
         out = io.StringIO()
 
         out.write("OrdinalMap Description\n")
@@ -83,8 +88,13 @@ class OrdinalMap:
 
         return result
 
-    def compute_class_centers(self) -> torch.Tensor:
-        return torch.linspace(self.domain[0], self.domain[1], steps=self.num_classes)
+    #def to(self, device: torch.device):
+    #    values = values.cpu()
+    #    self.class_centers = self.class_centers.to(device)
+    #    return self
 
     def compute_bin_edges(self) -> torch.Tensor:
         return torch.linspace(self.domain[0], self.domain[1], steps=self.num_classes + 1)
+
+    def compute_class_centers(self) -> torch.Tensor: 
+        return 0.5 * (self.bin_edges[:-1] + self.bin_edges[1:]) 

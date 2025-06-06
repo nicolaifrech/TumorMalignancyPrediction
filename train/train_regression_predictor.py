@@ -18,7 +18,7 @@ def train_regression_predictor(config, verbose=True):
         verbose=verbose
     )
   
-    criterion = CompositeLoss(
+    criterion = CompositeLoss([
         (torch.nn.L1Loss(), 1.0, 'l1'),
         (
             ScalarToClassificationLoss(
@@ -30,7 +30,8 @@ def train_regression_predictor(config, verbose=True):
             cfg.loss_regularization,
             'mcc'
         )
-    )
+    ])
+    #criterion = torch.nn.L1Loss()
 
     # Compose config to pass to train()
     train_config = {
@@ -44,5 +45,5 @@ def train_regression_predictor(config, verbose=True):
         'step_fn': supervised_step_fn
     }
 
-    # Delegate to generic training loop
+    # Delegate to generic training loop 
     train(train_config, verbose=verbose)

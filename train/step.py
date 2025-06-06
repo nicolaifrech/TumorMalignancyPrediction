@@ -9,7 +9,7 @@ def supervised_step_fn(model, batch, criterion, optimizer, device):
     inputs, targets = inputs.to(device), targets.to(device)
 
     optimizer.zero_grad()
-    outputs = model(inputs)
+    outputs = model(inputs).squeeze(-1)
     loss = criterion(outputs, targets)
     loss.backward()
     optimizer.step()

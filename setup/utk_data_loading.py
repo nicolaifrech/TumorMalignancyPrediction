@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import DataLoader, random_split
 import json
 from os.path import join, exists
+import os
 import io
 
 from datasets.transforms import get_transforms, TwoCropTransform
@@ -9,6 +10,7 @@ from datasets.splits import load_or_create_split
 from datasets.utk_dataset import UTKFaceDataset
 from mappings.ordinal_map import OrdinalMap
 from datasets.discretized_dataset import DiscretizedDataset
+from utils.config import extract_config
 
 def train_collate_fn(batch):
     images1 = torch.stack([item[0][0] for item in batch], dim=0)
@@ -29,6 +31,93 @@ def describe_and_save_ordinal_map(ordinal_map, loader, output_path, verbose):
         values.append(targets)
     scalar_values = torch.cat(values, dim=0)
     ordinal_map.describe(scalar_values, file=output_path, verbose=verbose)
+
+def get_data_loaders_for_predictor_training(config):
+    cfg = extract_config(config,
+        required={
+            'data_folder', 'split', 'val_size', 'test_size',
+            'augmentations', 'base_dir'
+        },
+        optional={
+            'seed': 0,
+            'verbose': True,
+            'batch_size': 64,
+            'num_workers': 4,
+            'discretize_labels': False,
+            'num_classes': 10,
+            'dataset_description_file_name': None
+        },
+        verbose=False
+    )
+   
+    # Load or create split
+    split_dict = load_or_create_split(cfg.data_folder, cfg.split, cfg.val_size, cfg.test_size, seed=cfg.seed, verbose=cfg.verbose)
+    
+    # Transforms 
+    transform = get_transforms('val', '')
+
+    # Datasets
+    train_ds = UTKFaceDataset(cfg.data_folder, split_files=split_dict, split='train', transform=transform)
+    val_ds   = UTKFaceDataset(cfg.data_folder, split_files=split_dict, split='val',   transform=transform)
+    test_ds  = UTKFaceDataset(cfg.data_folder, split_files=split_dict, split='test', transform=transform)
+
+    # Discretization
+    if cfg.discretize_labels:
+        ordinal_map = OrdinalMap(domain=(0, 116), num_classes=cfg.num_classes)
+        train_ds = DiscretizedDataset(train_ds, ordinal_map)
+        val_ds = DiscretizedDataset(val_ds, ordinal_map) 
+        test_ds = DiscretizedDataset(test_ds, ordinal_map) 
+    else:
+        ordinal_map = None 
+
+    # DataLoaders
+    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, 
+        num_workers=cfg.num_workers, pin_memory=True)
+    val_loader   = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, 
+        num_workers=cfg.num_workers, pin_memory=True) 
+    test_loader = DataLoader(test_ds, batch_size=cfg.batch_size, shuffle=False, 
+        num_workers=cfg.num_workers, pin_memory=True)
+
+    describe_and_save_ordinal_map(ordinal_map, train_loader, cfg.dataset_description_file_name, cfg.verbose)
+
+    return train_loader, val_loader, test_loader, ordinal_map 
+
+def get_data_loaders_for_encoder_training(config):
+    cfg = extract_config(config,
+        required={
+            'data_folder', 'split', 'val_size', 'test_size',
+            'augmentations', 'train_collate_fn', 'val_collate_fn'
+        },
+        optional={
+            'seed': 0,
+            'verbose': True,
+            'batch_size': 64,
+            'num_workers': 4,
+        },
+        verbose=False
+    )
+   
+    # Load or create split
+    split_dict = load_or_create_split(cfg.data_folder, cfg.split, cfg.val_size, cfg.test_size, seed=cfg.seed, verbose=cfg.verbose)
+    
+    # Transforms
+    train_transform = TwoCropTransform(get_transforms('train', cfg.augmentations))
+    val_transform = get_transforms('val', '')
+
+    # Datasets
+    train_ds = UTKFaceDataset(cfg.data_folder, split_files=split_dict, split='train', transform=train_transform)
+    val_ds   = UTKFaceDataset(cfg.data_folder, split_files=split_dict, split='val',   transform=val_transform)
+    train_clean_ds  = UTKFaceDataset(cfg.data_folder, split_files=split_dict, split='train', transform=val_transform)
+  
+    # DataLoaders
+    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, 
+        num_workers=cfg.num_workers, pin_memory=True, collate_fn=cfg.train_collate_fn)
+    val_loader   = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False, 
+        num_workers=cfg.num_workers, pin_memory=True) 
+    train_clean_loader = DataLoader(train_clean_ds, batch_size=cfg.batch_size, shuffle=False, 
+        num_workers=cfg.num_workers, pin_memory=True)
+
+    return train_loader, val_loader_train_clean_loader
 
 def get_data_loaders(config):
     data_folder = config['data_folder']

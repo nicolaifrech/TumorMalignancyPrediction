@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 
 class Predictor(nn.Module):
-    def __init__(self, encoder: nn.Module, in_dim: int, out_dim: int, freeze_encoder: bool = True):
+    def __init__(self, encoder: nn.Module, input_dim: int, output_dim: int, freeze_encoder: bool = True):
         super().__init__()
         self.encoder = encoder
-        self.predictor = nn.Linear(in_dim, out_dim)
+        self.predictor = nn.Linear(input_dim, output_dim)
 
         if freeze_encoder:
             for param in self.encoder.parameters():

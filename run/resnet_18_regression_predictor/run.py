@@ -38,14 +38,11 @@ def setup_test_environment(config):
     save_configuration(config)
 
 def setup_test(config):
-    #torch.zeros(1).to('cuda')
-
     device, model, optimizer, scheduler, monitor = setup_training_environment(
         {**config, 'model_builder': setup_predictor}
     )   
 
     train_loader, val_loader, test_loader, ordinal_map = get_data_loaders_for_predictor_training(config)
-    #ordinal_map.to(device)
 
     train_config = setup_predictor_train_config(
         device, model, optimizer, scheduler, monitor,

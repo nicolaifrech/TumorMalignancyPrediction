@@ -63,12 +63,13 @@ def get_data_loaders_for_predictor_training(config):
 
     # Discretization
     if cfg.discretize_labels:
-        ordinal_map = OrdinalMap(domain=(0, 116), num_classes=cfg.num_classes)
-        train_ds = DiscretizedDataset(train_ds, ordinal_map)
-        val_ds = DiscretizedDataset(val_ds, ordinal_map) 
-        test_ds = DiscretizedDataset(test_ds, ordinal_map) 
+        ordinal_map_load = OrdinalMap(domain=(0, 116), num_classes=cfg.num_classes, map_to_cpu=True)
+        ordinal_map_train = OrdinalMap(domain=(0, 116), num_classes=cfg.num_classes, map_to_cpu=False)
+        train_ds = DiscretizedDataset(train_ds, ordinal_map_load)
+        val_ds = DiscretizedDataset(val_ds, ordinal_map_load) 
+        test_ds = DiscretizedDataset(test_ds, ordinal_map_load) 
     else:
-        ordinal_map = None 
+        ordinal_map_train = None 
 
     # DataLoaders
     train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, 
@@ -77,10 +78,10 @@ def get_data_loaders_for_predictor_training(config):
         num_workers=cfg.num_workers, pin_memory=True) 
     test_loader = DataLoader(test_ds, batch_size=cfg.batch_size, shuffle=False, 
         num_workers=cfg.num_workers, pin_memory=True)
+ 
+    describe_and_save_ordinal_map(ordinal_map_train, train_loader, cfg.dataset_description_file_name, cfg.verbose)
 
-    describe_and_save_ordinal_map(ordinal_map, train_loader, cfg.dataset_description_file_name, cfg.verbose)
-
-    return train_loader, val_loader, test_loader, ordinal_map 
+    return train_loader, val_loader, test_loader, ordinal_map_train
 
 def get_data_loaders_for_encoder_training(config):
     cfg = extract_config(config,

@@ -7,14 +7,12 @@ def gaussian_kernel_logits(y_pred: torch.Tensor, class_centers: torch.Tensor) ->
     Converts scalar predictions into unnormalized Gaussian logits (not probabilities!).
     These logits can be passed to SoftMCCLossMulti, which will apply softmax.
     """
-    device = y_pred.device
-    y_pred = y_pred.cpu()
     spacing = class_centers[1] - class_centers[0]
     sigma = spacing / 2
 
     dists_sq = (y_pred.unsqueeze(1) - class_centers.unsqueeze(0)) ** 2
     logits = -dists_sq / (2 * sigma ** 2)
-    return logits.to(device)  # [B, C]
+    return logits # [B, C]
 
 class ScalarToClassificationLoss(nn.Module):
     def __init__(self, classification_loss, kernel_fn, ordinal_map, one_hot_encoding=True):
@@ -30,13 +28,14 @@ class ScalarToClassificationLoss(nn.Module):
         self.one_hot_encoding = one_hot_encoding
 
     def forward(self, y_pred: torch.Tensor, class_targets: torch.Tensor) -> torch.Tensor:
+        self.ordinal_map.to(y_pred.device)
         centers = self.ordinal_map.class_centers
         logits = self.kernel_fn(y_pred, centers)
 
         if self.one_hot_encoding:
             class_indices = self.ordinal_map.map_to_index(class_targets)
             target_probs = F.one_hot(class_indices, num_classes=centers.size(0)).float()
-            loss = self.classification_loss(logits, target_probs.to(logits.device))
+            loss = self.classification_loss(logits, target_probs)
         else:
             loss = self.classification_loss(logits, class_targets)
 

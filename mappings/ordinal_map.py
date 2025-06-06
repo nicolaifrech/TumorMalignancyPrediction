@@ -53,7 +53,7 @@ class OrdinalMap():
     def describe(self, values: torch.Tensor, file: Optional[str] = None, verbose: bool = True):
         """
         Print (or optionally write) dataset statistics related to the ordinal map.
-    
+
         Args:
             values (torch.Tensor): scalar labels from the dataset
             file (str or None): optional path to save the output
@@ -64,19 +64,25 @@ class OrdinalMap():
         out.write("----------------------\n")
         out.write(f"Domain: [{self.domain[0]}, {self.domain[1]}]\n")
         out.write(f"Number of classes: {self.num_classes}\n")
-        out.write(f"Bin edges: {self.bin_edges.tolist()}\n")
-        out.write(f"Class centers: {self.class_centers.tolist()}\n")
 
         # Class counts
         indices = self.map_to_index(values)
         counts = torch.bincount(indices, minlength=self.num_classes)
         total = counts.sum().item()
-        out.write("Class distribution:\n")
-        for i, count in enumerate(counts.tolist()):
-            out.write(f"  Class {i:3}: {count:6} ({100 * count / total:.2f}%)\n")
+
+        out.write("\nClass-wise bin information:\n")
+        out.write(f"{'Class':>5} | {'Bin Range':^16} | {'Center':^10} | {'Count':^6} | {'%':^6}\n")
+        out.write("-" * 60 + "\n")
+        for i in range(self.num_classes):
+            left = self.bin_edges[i]
+            right = self.bin_edges[i + 1]
+            center = self.class_centers[i]
+            count = counts[i].item()
+            percent = 100 * count / total if total > 0 else 0.0
+            out.write(f"{i:5d} | [{left:6.1f}, {right:6.1f}) | {center:10.2f} | {count:6d} | {percent:5.2f}%\n")
 
         empty_bins = (counts == 0).sum().item()
-        out.write(f"Empty bins: {empty_bins} of {self.num_classes}\n")
+        out.write(f"\nEmpty bins: {empty_bins} of {self.num_classes}\n")
 
         # Out-of-domain values
         below = (values < self.domain[0]).sum().item()

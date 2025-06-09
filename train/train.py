@@ -2,7 +2,8 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from metrics.metrics import compute_metrics
+#from metrics.metrics import compute_metrics
+from metrics.metric_evaluator import MetricEvaluator
 from utils.config import extract_config
 from utils.printing import print_verbose
 
@@ -32,10 +33,7 @@ def train(config, verbose=True):
             'device', 'model',
             'num_epochs', 'train_loader', 'val_loader',
             'criterion', 'optimizer', 'scheduler', 'monitor',
-            'step_fn'
-        },
-        optional={
-            'metrics': {'metric_names': ['val_loss', 'embedding_norm', 'embedding_variance', 'lr']}
+            'step_fn', 'metric_evaluator'
         },
         verbose=verbose
     ) 
@@ -49,20 +47,11 @@ def train(config, verbose=True):
         )    
 
         cfg.scheduler.step(train_loss)
-
-        cfg.model.eval()
-        other_metrics=compute_metrics(
-            model=cfg.model,
-            train_loader=cfg.train_loader,
-            val_loader=cfg.val_loader,
-            optimizer=cfg.optimizer,
-            device=cfg.device, 
-            config=cfg.metrics
+ 
+        metrics = cfg.metric_evaluator.compute(
+            cfg.model, cfg.optimizer, cfg.criterion, train_loss
         )
-        metrics = { 
-            'train_loss': train_loss,
-            **other_metrics,
-        }   
+ 
         if hasattr(cfg, 'monitor') and cfg.monitor:
             training_status = cfg.monitor.update(cfg.model, metrics, epoch=epoch)
             if training_status.get('early_stopping') == 'early_stop':

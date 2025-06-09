@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
-def extract_embeddings(model, loader, device, verbose=True):
+def extract_outputs(model, loader, device, verbose=True):
     model.to(device)
     model.eval()
     all_embeddings = []

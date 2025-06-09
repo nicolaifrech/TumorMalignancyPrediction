@@ -2,8 +2,8 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 
 from device import setup_device
-from metrics.knn_analyzer import KNNAnalyzer
-from metrics.knr_analyzer import KNRAnalyzer
+import metrics
+from metrics.metric_evaluator import MetricEvaluator
 from setup.optimizer_setup import setup_optimizer
 from setup.scheduler_setup import setup_scheduler
 from setup.monitor_setup import setup_monitor
@@ -12,7 +12,6 @@ from setup.model_setup import setup_encoder
 def setup_training_environment(config):
     momentum = config.get('momentum', 0.9)
     device, data_parallel = setup_device(use_gpu_1_only=config['use_gpu_1_only'], verbose=config['verbose'])
-    #model = setup_encoder(config['backbone_model'], data_parallel, config['output_dim'], config['pretrained'], device)
     model = config['model_builder']({**config, 'device': device, 'data_parallel': data_parallel})
     optimizer = setup_optimizer(config['optimizer'], model, config['learning_rate'], momentum)
     scheduler = setup_scheduler(config['scheduler'], optimizer, step_size=10, gamma=0.1, epochs=config['num_epochs']) 
@@ -33,60 +32,13 @@ def setup_training_environment(config):
 
     return device, model, optimizer, scheduler, monitor
 
-def setup_predictor_train_config(device, model, optimizer, scheduler, monitor, train_loader, val_loader, ordinal_map, config):
-    metric_names = config.get("training_metrics", [])
-    nearest_neighbors = config.get("nearest_neighbors", 5)
-
-    # Optional metrics
-    #knn_analyzer = KNNAnalyzer(train_loader, k=nearest_neighbors) if "knn_accuracy" in metric_names else None
-    #knr_analyzer = KNRAnalyzer(train_loader, k=nearest_neighbors, metric='mae') if "knr_error" in metric_names else None
-
-    # Only include analyzers if they're used
-    metrics_config = {
-        "metric_names": metric_names,
-    }
-    #if knn_analyzer:
-    #    metrics_config["knn_analyzer"] = knn_analyzer
-    #if knr_analyzer:
-    #    metrics_config["knr_analyzer"] = knr_analyzer
-
-    loss_regularization = config.get('loss_regularization', None)
-
-    # Create the final training config object
-    train_config = {
-        "device": device,
-        "train_loader": train_loader,
-        "val_loader": val_loader,
-        "optimizer": optimizer,
-        "scheduler": scheduler, 
-        "ordinal_map": ordinal_map,
-        "loss_regularization": loss_regularization,
-        "train_config": {
-            "model": model,
-            "num_epochs": config["num_epochs"],
-            "monitor": monitor,
-            "metrics": metrics_config
-        }
-    }
-
-    return train_config
-
-def setup_train_config(device, model, optimizer, scheduler, monitor, train_loader, val_loader, train_loader_clean, ordinal_map, config):
-    metric_names = config.get("training_metrics", [])
-    nearest_neighbors = config.get("nearest_neighbors", 5)
-
-    # Optional metrics
-    knn_analyzer = KNNAnalyzer(train_loader_clean, k=nearest_neighbors) if "knn_accuracy" in metric_names else None
-    knr_analyzer = KNRAnalyzer(train_loader_clean, k=nearest_neighbors, metric='mae') if "knr_error" in metric_names else None
-
-    # Only include analyzers if they're used
-    metrics_config = {
-        "metric_names": metric_names,
-    }
-    if knn_analyzer:
-        metrics_config["knn_analyzer"] = knn_analyzer
-    if knr_analyzer:
-        metrics_config["knr_analyzer"] = knr_analyzer
+def setup_train_config(device, model, optimizer, scheduler, monitor, 
+    train_loader, val_loader, metric_train_loader, ordinal_map, config):
+    metric_names = config.get("training_metrics", [])   
+    metric_evaluator = MetricEvaluator(metric_names, {
+        'train': metric_train_loader,
+        'val': val_loader
+    }, device)
 
     loss_regularization = config.get('loss_regularization', None)
 
@@ -97,14 +49,14 @@ def setup_train_config(device, model, optimizer, scheduler, monitor, train_loade
         "val_loader": val_loader,
         "optimizer": optimizer,
         "scheduler": scheduler,
-        "temperature": config['temperature'],
+        "temperature": config.get('temperature', None),
         "ordinal_map": ordinal_map,
         "loss_regularization": loss_regularization,
         "train_config": {
             "model": model,
             "num_epochs": config["num_epochs"],
             "monitor": monitor,
-            "metrics": metrics_config
+            'metric_evaluator': metric_evaluator
         }
     }
 

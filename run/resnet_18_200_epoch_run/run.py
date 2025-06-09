@@ -8,7 +8,7 @@ from numba.core.errors import NumbaWarning
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "../..")))
 
 from device import setup_device
-from datasets.loading import get_data_loaders
+from setup.utk_data_loading import get_data_loaders
 from model.loading import load_model
 from train.train_encoder import train_encoder
 from utils.checkpoint import save_checkpoint
@@ -42,11 +42,11 @@ def setup_test(config):
         {**config, 'model_builder': setup_encoder}
     )   
 
-    train_loader, val_loader, test_loader, train_loader_clean = get_data_loaders(config)
+    train_loader, val_loader, test_loader, train_loader_clean, ordinal_map = get_data_loaders(config)
 
     train_config = setup_train_config(
         device, model, optimizer, scheduler, monitor,
-        train_loader, val_loader, train_loader_clean,
+        train_loader, val_loader, train_loader_clean, ordinal_map,
         config
     )
     return model, train_config

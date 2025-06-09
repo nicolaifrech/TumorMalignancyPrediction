@@ -19,7 +19,7 @@ from utils.cli import load_config
 from setup.model_setup import setup_predictor
 from setup.utk_data_loading import get_data_loaders_for_predictor_training
 from setup.test_dir_setup import setup_testing_directory
-from setup.training_setup import setup_training_environment, setup_predictor_train_config
+from setup.training_setup import setup_training_environment, setup_train_config
 
 warnings.filterwarnings("ignore", message=".*force_all_finite.*")
 warnings.filterwarnings("ignore", category=NumbaWarning)
@@ -44,9 +44,9 @@ def setup_test(config):
 
     train_loader, val_loader, test_loader, ordinal_map = get_data_loaders_for_predictor_training(config)
 
-    train_config = setup_predictor_train_config(
+    train_config = setup_train_config(
         device, model, optimizer, scheduler, monitor,
-        train_loader, val_loader, ordinal_map,
+        train_loader, val_loader, train_loader, ordinal_map,
         config
     )
     return train_config
